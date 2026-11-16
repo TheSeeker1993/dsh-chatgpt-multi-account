@@ -715,6 +715,46 @@ window.__ModuleLoader__.load({
     Object.assign(copy.en, { pickerPreview: 'Preview', pickerReasoning: 'Reasoning', pickerApplyHint: 'Click a model to apply your selection', pickerTabOther: 'Other', pickerNotApplied: 'Not applied yet' })
     Object.assign(copy.zh, { pickerPreview: '预览', pickerReasoning: '推理', pickerApplyHint: '点击模型以应用选择', pickerTabOther: '其他', pickerNotApplied: '尚未应用' })
     const pickerCss = `
+/* Siri Orb mesh adapted from SmoothUI (MIT), Eduardo Calvo.
+   idle: rotation 20/.6=33.333s, sheen 12/(1+.6)*2=15s, breath5.5s. */
+@property --gl-orb-angle{syntax:"<angle>";inherits:false;initial-value:0deg}
+.gl-card-orb-clip{position:absolute;inset:1px;border-radius:inherit;overflow:hidden;pointer-events:none;z-index:0}
+.gl-card-orb{display:block;position:absolute;inset:-18%;width:136%;height:136%;border-radius:inherit;isolation:isolate;opacity:.23;pointer-events:none;background:var(--dsw-alias-bg-layer-1);animation:gl-orb-breathe 5.5s cubic-bezier(.645,.045,.355,1) infinite;transition:opacity .3s ease,filter .3s ease;filter:saturate(.8)}
+.gl-fan-card:not(:disabled):hover .gl-card-orb,.gl-fan-card:not(:disabled):focus-visible .gl-card-orb{opacity:.52;filter:saturate(1.3)}
+.gl-card-orb-clip::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,color-mix(in srgb,var(--dsw-alias-bg-layer-1) 12%,transparent),color-mix(in srgb,var(--dsw-alias-bg-layer-1) 72%,transparent));pointer-events:none;z-index:1}
+.gl-fan-card>.gl-fan-top,.gl-fan-card>.gl-fan-name,.gl-fan-card>.gl-fan-remaining,.gl-fan-card>.gl-fan-state{position:relative;z-index:1}
+.gl-card-orb::before,.gl-card-orb::after,.gl-card-orb-sheen,.gl-card-orb-rim{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none}
+.gl-card-orb{--gl-c1:var(--dsw-alias-state-business-primary);--gl-c2:color-mix(in srgb,var(--dsw-alias-state-business-primary) 50%,var(--dsw-alias-label-primary));--gl-c3:color-mix(in srgb,var(--dsw-alias-state-business-primary) 80%,var(--dsw-alias-bg-layer-1));--gl-c4:color-mix(in srgb,var(--dsw-alias-state-business-primary) 65%,var(--dsw-alias-label-secondary))}
+.gl-card-orb::before{background:conic-gradient(from calc(var(--gl-orb-angle)*2) at 25% 70%,var(--gl-c3),transparent 20% 80%,var(--gl-c3)),conic-gradient(from calc(var(--gl-orb-angle)*2) at 45% 75%,var(--gl-c2),transparent 30% 60%,var(--gl-c2)),conic-gradient(from calc(var(--gl-orb-angle)*-3) at 80% 20%,var(--gl-c1),transparent 40% 60%,var(--gl-c1)),conic-gradient(from calc(var(--gl-orb-angle)*1.5) at 60% 35%,var(--gl-c4),transparent 25% 75%,var(--gl-c4)),conic-gradient(from calc(var(--gl-orb-angle)*2) at 15% 5%,var(--gl-c2),transparent 10% 90%,var(--gl-c2)),conic-gradient(from var(--gl-orb-angle) at 20% 80%,var(--gl-c1),transparent 10% 90%,var(--gl-c1)),conic-gradient(from calc(var(--gl-orb-angle)*-2) at 85% 10%,var(--gl-c3),transparent 20% 80%,var(--gl-c3));filter:blur(4px) contrast(1.5) saturate(1.05);animation:gl-orb-turn 66.666667s linear infinite}
+.gl-card-orb::after{background-image:radial-gradient(circle at center,var(--dsw-alias-bg-layer-1) .1px,transparent .1px);background-size:.2px .2px;backdrop-filter:blur(8px) contrast(3);mix-blend-mode:overlay;mask-image:radial-gradient(black 25%,transparent 75%)}
+.gl-card-orb-sheen{background:radial-gradient(circle at 30% 24%,color-mix(in srgb,var(--dsw-alias-label-primary) 32%,transparent),transparent 34%),radial-gradient(circle at 72% 80%,color-mix(in srgb,var(--dsw-alias-label-primary) 7%,transparent),transparent 48%);animation:gl-orb-drift 15s ease-in-out infinite alternate;mix-blend-mode:screen}
+.gl-card-orb-rim{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--dsw-alias-label-primary) 16%,transparent),inset 0 7px 14px color-mix(in srgb,var(--dsw-alias-label-primary) 22%,transparent),inset 0 -8px 16px color-mix(in srgb,var(--dsw-alias-bg-layer-1) 40%,transparent)}
+.gl-card-orb::before{animation-delay:var(--gl-orb-phase,0s);animation-direction:var(--gl-orb-direction,normal)}
+.gl-card-orb-sheen{animation-delay:var(--gl-orb-phase,0s)}
+.gl-card-orb{animation-delay:var(--gl-orb-phase,0s)}
+@keyframes gl-orb-turn{to{--gl-orb-angle:720deg}}
+@keyframes gl-orb-drift{from{transform:translate(-6%,-4%) scale(1.05)}to{transform:translate(7%,6%) scale(1.12)}}
+@keyframes gl-orb-breathe{0%,100%{transform:scale(.94)}50%{transform:scale(.9729)}}
+@media(prefers-reduced-motion:reduce){.gl-card-orb,.gl-card-orb::before,.gl-card-orb-sheen{animation:none!important;transition:none!important}}
+
+.gl-fan[data-paused=true] .gl-card-orb,.gl-fan[data-paused=true] .gl-card-orb::before,.gl-fan[data-paused=true] .gl-card-orb-sheen,.gl-fan-card[data-offscreen=true] .gl-card-orb,.gl-fan-card[data-offscreen=true] .gl-card-orb::before,.gl-fan-card[data-offscreen=true] .gl-card-orb-sheen{animation-play-state:paused}
+.gl-fan[data-many=true] .gl-card-orb::after{backdrop-filter:none}
+.gl-fan{position:relative;height:164px;flex:none;min-width:0;margin:0 4px 2px;font-family:inherit;isolation:isolate}
+.gl-fan-card{box-sizing:border-box;position:absolute;left:50%;top:28px;width:128px;height:120px;transform-origin:50% 100%;border:1px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-xl,12px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);padding:10px;text-align:left;display:flex;flex-direction:column;gap:5px;font:inherit;cursor:pointer;will-change:transform}
+.gl-fan-card:nth-child(3n+1){background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 96%,var(--dsw-alias-label-primary))}
+.gl-fan-card:nth-child(3n+2){background:var(--dsw-alias-bg-layer-1)}
+.gl-fan-card:nth-child(3n){background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 93%,var(--dsw-alias-label-primary))}
+.gl-fan-card[aria-pressed=true]{border-color:var(--dsw-alias-state-business-primary);box-shadow:inset 0 0 0 1px var(--dsw-alias-state-business-primary)}
+.gl-fan-card:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
+.gl-fan-card:disabled{cursor:default;opacity:.6}
+.gl-fan-top{display:flex;justify-content:space-between;font-size:10px;color:var(--dsw-alias-label-tertiary)}
+.gl-fan-name{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:auto}
+.gl-fan-remaining{font-size:11px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gl-fan-state{font-size:10px;line-height:14px;color:var(--dsw-alias-state-business-primary)}
+.gl-fan[data-many=true]{height:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:6px;padding:4px 0}
+.gl-fan[data-many=true] .gl-fan-card{position:relative;top:auto;left:auto;width:100%!important;transform:none!important;height:100px;will-change:auto}
+@media(prefers-reduced-motion:reduce){.gl-fan-card{will-change:auto}}
+
 .gl-compact-tabs{display:flex;gap:4px;padding:0 12px 8px;flex:none}
 .gl-compact-tabs button,.gl-account-tab,.gl-effort-button{border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:7px;padding:4px 9px;font:inherit;font-size:12px;cursor:pointer}
 .gl-compact-tabs button[aria-pressed=true],.gl-account-tab[aria-pressed=true],.gl-effort-button[aria-pressed=true]{color:var(--dsw-alias-state-business-primary);border-color:var(--dsw-alias-state-business-primary);background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 8%,transparent)}
@@ -798,6 +838,93 @@ window.__ModuleLoader__.load({
 .gl-picker-row button:disabled{opacity:.5;cursor:default}.gl-picker-info{padding:0 12px 8px;margin:0;font-size:11px;color:var(--dsw-alias-label-secondary)}
 @media(max-width:420px){.gl-picker-head{padding:12px}.gl-picker-list{padding:0 10px 12px}.gl-picker-trigger{max-width:230px}.gl-picker-quota{max-width:95px;overflow:hidden;text-overflow:ellipsis}}
 `
+    // Motion behavior adapted from DesignBookmark Fan Cards. No global theme or timers.
+    function FanAccounts({ accounts, previewId, currentId, onPreview, quotaText, compactQuota, quotas, selecting, t }) {
+      const root = React.useRef(null), nodes = React.useRef([]), engine = React.useRef(null)
+      const [expanded, setExpanded] = React.useState(false)
+      const [hot, setHot] = React.useState(-1)
+      React.useEffect(() => {
+        const media = matchMedia('(prefers-reduced-motion: reduce)')
+        const spring = (x, k, c) => ({ x, t: x, v: 0, k, c })
+        const model = { fan: spring(1, 220, 18), cards: accounts.map(() => (() => { const base = .65 + Math.random() * .7; return { lift: spring(0, 420, 20), scale: spring(1, 420, 22), energy: spring(base, 260, 24), base, phase: Math.random() * 33, direction: Math.random() > .5 ? 'normal' : 'reverse' } })()), reduced: media.matches, raf: 0, last: 0 }
+        engine.current = model
+        const step = (s, dt) => { s.v += (-s.k * (s.x - s.t) - s.c * s.v) * dt; s.x += s.v * dt }
+        const settled = s => Math.abs(s.x - s.t) < .001 && Math.abs(s.v) < .01
+        let cardWidth = 128, spread = 78
+        model.cards.forEach((card, i) => {
+          const node = nodes.current[i]; if (!node) return
+          node.style.setProperty('--gl-orb-phase', '-' + card.phase.toFixed(3) + 's')
+          node.style.setProperty('--gl-orb-direction', card.direction)
+          card.animations = []
+        })
+        const render = () => {
+          model.cards.forEach((card, i) => {
+            const node = nodes.current[i]; if (!node) return
+            const d = i - (accounts.length - 1) / 2
+            const distance = Math.max(1, (accounts.length - 1) / 2)
+            const x = d * (6 + model.fan.x * (spread - 6))
+            const r = (d / distance) * (3 + model.fan.x * 9)
+            const y = Math.abs(d / distance) * model.fan.x * 8 + card.lift.x
+            if (!model.reduced && node.getAnimations) {
+              if (!card.animations.length || card.animations.some(a => a.playState === 'idle')) card.animations = node.getAnimations({ subtree: true }).filter(a => ['gl-orb-turn', 'gl-orb-drift', 'gl-orb-breathe'].includes(a.animationName))
+              const rate = Math.max(.5, card.energy.x)
+              card.animations.forEach(animation => { if (Math.abs(animation.playbackRate - rate) > .005) animation.updatePlaybackRate(rate) })
+            }
+            node.style.transform = 'translate(calc(-50% + ' + x.toFixed(2) + 'px),' + y.toFixed(2) + 'px) rotate(' + r.toFixed(3) + 'deg) scale(' + card.scale.x.toFixed(4) + ')'
+          })
+        }
+        const frame = time => {
+          const dt = model.last ? Math.min((time - model.last) / 1000, 1 / 30) : 1 / 60; model.last = time
+          for (let j = 0; j < 4; j++) { step(model.fan, dt / 4); model.cards.forEach(c => { step(c.lift, dt / 4); step(c.scale, dt / 4); step(c.energy, dt / 4) }) }
+          render()
+          if (![model.fan, ...model.cards.flatMap(c => [c.lift, c.scale, c.energy])].every(settled)) model.raf = requestAnimationFrame(frame)
+          else { model.raf = 0; model.last = 0 }
+        }
+        model.wake = () => {
+          if (model.reduced) { cancelAnimationFrame(model.raf); model.raf = 0; model.last = 0; [model.fan, ...model.cards.flatMap(c => [c.lift, c.scale, c.energy])].forEach(s => { s.x = s.t; s.v = 0 }); render(); return }
+          if (!model.raf) model.raf = requestAnimationFrame(frame)
+        }
+        const reduce = () => { model.reduced = media.matches; model.cards.forEach(c => { c.animations = [] }); model.wake() }
+        media.addEventListener('change', reduce)
+        const resize = () => {
+          const width = root.current?.clientWidth ?? 400
+          cardWidth = Math.max(100, Math.min(144, width / Math.max(1, accounts.length)))
+          spread = accounts.length < 2 ? 0 : Math.min(110, Math.max(34, (width - cardWidth - 14) / (accounts.length - 1)))
+          nodes.current.forEach(node => { if (node) node.style.width = cardWidth + 'px' })
+          render()
+        }
+        const visibility = () => { if (root.current) root.current.dataset.paused = document.hidden ? 'true' : 'false' }
+        document.addEventListener('visibilitychange', visibility); visibility()
+        const observer = new ResizeObserver(resize); if (root.current) observer.observe(root.current)
+        const visibleCards = new IntersectionObserver(entries => entries.forEach(e => { e.target.dataset.offscreen = e.isIntersecting ? 'false' : 'true' }), { threshold: .01 })
+        nodes.current.forEach(node => { if (node) visibleCards.observe(node) })
+        resize(); model.wake()
+        return () => { cancelAnimationFrame(model.raf); observer.disconnect(); visibleCards.disconnect(); document.removeEventListener('visibilitychange', visibility); media.removeEventListener('change', reduce); if (engine.current === model) engine.current = null }
+      }, [accounts.map(a => a.id).join('|')])
+      React.useEffect(() => {
+        const model = engine.current; if (!model) return
+        // Resting hand is already readable; interaction adds the original fan spread.
+        model.fan.t = expanded ? 1 : .72
+        model.cards.forEach((c, i) => { c.lift.t = i === hot ? -22 : 0; c.scale.t = i === hot ? 1.06 : 1; c.energy.t = c.base * (i === hot ? 2.8 : 1) })
+        model.wake()
+      }, [expanded, hot, accounts.map(a => a.id).join('|')])
+      return h('div', { ref: root, className: 'gl-fan', role: 'group', 'aria-label': text(t, 'gptAccountsBlock'), 'data-many': accounts.length > 4 ? 'true' : undefined,
+        onPointerEnter: () => setExpanded(true), onPointerLeave: () => { setExpanded(false); setHot(-1) },
+        onFocus: () => setExpanded(true), onBlur: e => { if (!e.currentTarget.contains(e.relatedTarget)) { setExpanded(false); setHot(-1) } } },
+        accounts.map((account, i) => h('button', { ref: node => { nodes.current[i] = node }, key: account.id, type: 'button', className: 'gl-fan-card',
+          'aria-pressed': previewId === account.id, 'data-current': currentId === account.id ? 'true' : undefined,
+          style: { zIndex: hot === i ? 30 : previewId === account.id ? 20 : i + 1 },
+          title: account.label + ' · ' + quotaText(quotas[account.id]),
+          'aria-label': account.label + ' · ' + (account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')) + (currentId === account.id ? ' · ' + text(t, 'activeAccount') : ''),
+          disabled: selecting, onPointerEnter: () => setHot(i), onFocus: () => setHot(i),
+          onClick: () => { const c = engine.current?.cards[i]; if (c && !engine.current.reduced) { c.lift.v = -260; engine.current.wake() }; onPreview(account.id) } },
+          h('span', { className: 'gl-card-orb-clip', 'aria-hidden': true }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' }), h('span', { className: 'gl-card-orb-rim' }))),
+          h('span', { className: 'gl-fan-top' }, h('span', null, 'ChatGPT'), h('span', null, String(i + 1).padStart(2, '0'))),
+          h('strong', { className: 'gl-fan-name' }, account.label.split('@')[0]),
+          h('span', { className: 'gl-fan-remaining' }, account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')),
+          h('span', { className: 'gl-fan-state' }, currentId === account.id ? text(t, 'activeAccount') : previewId === account.id ? text(t, 'pickerPreview') : '\u00a0'))))
+    }
+
     function UnifiedPicker({ t, sessionId, useSession, directory, locked }) {
       const state = React.useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot, directory.store.getSnapshot)
       const { snapshot, refresh, error: accountError } = useAccounts(sessionId)
@@ -914,13 +1041,8 @@ window.__ModuleLoader__.load({
             error || state.error ? h('p', { className: 'gl-picker-info', role: 'alert' }, error || state.error) : null,
             h('div', { className: 'gl-picker-list' },
               tab === 'gpt' ? h(React.Fragment, null,
-                h('div', { className: 'gl-account-tabs', role: 'group', 'aria-label': text(t, 'gptAccountsBlock') },
-                  accounts.map(account => h('button', { type: 'button', className: 'gl-account-tab', key: account.id,
-                    'aria-pressed': previewAccount?.id === account.id, 'data-current': state.current?.provider === 'chatgpt-session' && selectedId === account.id ? 'true' : undefined,
-                    title: account.label + ' · ' + quotaText(quotas[account.id]) + (state.current?.provider === 'chatgpt-session' && selectedId === account.id ? ' · ' + text(t, 'activeAccount') : '') + (previewAccount?.id === account.id ? ' · ' + text(t, 'pickerPreview') : ''), disabled: selecting,
-                    'aria-label': account.label + ' · ' + (account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')) + (state.current?.provider === 'chatgpt-session' && selectedId === account.id ? ' · ' + text(t, 'activeAccount') : ''),
-                    onClick: () => { setPreviewId(account.id); setQuery('') } },
-                    h('span', null, account.label.split('@')[0]), h('small', null, account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured'))))),
+                h(FanAccounts, { accounts, previewId: previewAccount?.id, currentId: state.current?.provider === 'chatgpt-session' ? selectedId : null,
+                  onPreview: id => { setPreviewId(id); setQuery('') }, quotaText, compactQuota, quotas, selecting, t }),
                 previewAccount ? h('div', { className: 'gl-preview-caption' }, h('span', null, previewAccount.label), h('span', { className: 'gl-active-badge' }, text(t, previewIsCurrent ? 'activeAccount' : 'pickerPreview'))) : null,
                 previewAccount?.configured ? h(RemainingQuota, { t, card: quotas[previewAccount.id], now, pending: !!quotaPending[previewAccount.id], onRefresh: () => void loadQuota([previewAccount.id], true) }) : null)
                 : h('select', { className: 'gl-input gl-compact-provider', value: previewGroup?.id ?? '', 'aria-label': text(t, 'otherProvidersBlock'), onChange: e => { setOtherProvider(e.target.value); setCommonEffort(null); setQuery('') } }, otherGroups.map(g => h('option', { value: g.id, key: g.id }, g.name))),
