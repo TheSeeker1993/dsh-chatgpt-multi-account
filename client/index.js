@@ -325,13 +325,21 @@ window.__ModuleLoader__.load({
     }
 
     // Cookie-authenticated, document-relative URLs preserve a mounted Host path.
+    let resetCsrfToken = null
     async function request(path, body, signal) {
+      const resetRequest = path.startsWith('api/chatgpt-resets')
+      if (resetRequest && body !== undefined && !resetCsrfToken) {
+        await request('api/chatgpt-resets?accountId=' + encodeURIComponent(body.accountId), undefined, signal)
+        if (!resetCsrfToken) throw new Error('RESET_CSRF_INVALID')
+      }
       const response = await fetch(path, {
         method: body === undefined ? 'GET' : 'POST', cache: 'no-store', credentials: 'same-origin', signal,
-        headers: { accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+        headers: { accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(resetRequest && body !== undefined ? { 'x-chatgpt-reset-csrf': resetCsrfToken } : {}) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       })
       const result = await response.json().catch(() => null)
+      if (resetRequest && body === undefined && typeof result?.csrfToken === 'string' && /^[a-f0-9]{64}$/.test(result.csrfToken)) resetCsrfToken = result.csrfToken
+      if (resetRequest && result?.error === 'RESET_CSRF_INVALID') resetCsrfToken = null
       if (!response.ok) throw new Error(typeof result?.error === 'string' ? result.error : `HTTP ${response.status}`)
       if (result?.ok === false || result?.error) throw new Error(typeof result.error === 'string' ? result.error : result.error?.message || 'Request failed')
       return result
@@ -542,17 +550,357 @@ window.__ModuleLoader__.load({
     Object.assign(copy.ru, { remaining: 'Остаётся {n}%', resetCountdown: 'До сброса: {span}', gptAccountsBlock: 'Аккаунты ChatGPT', otherProvidersBlock: 'Другие провайдеры', quotaStale: 'Данные устарели', quotaWeekly: 'Недельный лимит', quotaFiveHour: 'Лимит на 5 часов' })
     Object.assign(copy.en, { remaining: '{n}% remaining', resetCountdown: 'Resets in: {span}', gptAccountsBlock: 'ChatGPT accounts', otherProvidersBlock: 'Other providers', quotaStale: 'Outdated data', quotaWeekly: 'Weekly limit', quotaFiveHour: '5-hour limit' })
     Object.assign(copy.zh, { remaining: '剩余 {n}%', resetCountdown: '重置倒计时：{span}', gptAccountsBlock: 'ChatGPT 账号', otherProvidersBlock: '其他提供方', quotaStale: '数据已过期', quotaWeekly: '每周限额', quotaFiveHour: '5 小时限额' })
+    // Factory injection: after copy.ru is defined, before locale registration.
+    // Existing lexical dependencies: React, h, copy, request(path, body, signal).
+    // Render ONLY inside the weekly RemainingQuota block, below the fan cards:
+    // h(ResetMenu, { t, accountId, accountLabel, disabled, onConsumed })
+    // Source: designbookmark.com/motion-src/dynamic-menu/{menu.js,menu.css}
+    // and shared/{motion.js,tokens.css}. No shared Motion globals or autoplay.
+    Object.assign(copy.en, {
+      resetLimit: 'Reset limit', resetRefresh: 'Refresh resets', resetLoading: 'Loading resets…',
+      resetEmpty: 'No available resets.', resetError: 'Could not load resets. Refresh to try again.',
+      resetExpires: 'Expires: {time}', resetNoExpiry: 'Expiration not provided', resetType: 'Reset type: {type}',
+      resetUnknownType: 'Unspecified', resetStepOne: 'Warning · 1 of 2', resetStepTwo: 'Final warning · 2 of 2',
+      resetWarningOne: 'Account: {account}. {type}. This permanently spends one reset. This is not the automatic quota reset timer.',
+      resetWarningTwo: 'Account: {account}. {type}. Spending this reset cannot be undone. Continue only if you want to spend it now.',
+      resetContinue: 'Continue to final warning', resetSpend: 'Yes, spend reset', resetCancel: 'Cancel',
+      resetUnknown: 'The result is unknown. Do not repeat the spend. Check quota and refresh the reset list.',
+      resetDone: 'Reset spent. Quota refresh requested.', resetActionError: 'Confirmation failed. Cancel and refresh the list.',
+      resetUpdated: 'List updated: {time}', resetFreshness: 'Freshness: {value}',
+    })
+    Object.assign(copy.ru, {
+      resetLimit: 'Сброс лимита', resetRefresh: 'Обновить сбросы', resetLoading: 'Загрузка сбросов…',
+      resetEmpty: 'Доступных сбросов нет.', resetError: 'Не удалось загрузить сбросы. Обновите список.',
+      resetExpires: 'Действует до: {time}', resetNoExpiry: 'Срок действия не указан', resetType: 'Тип сброса: {type}',
+      resetUnknownType: 'Не указан', resetStepOne: 'Предупреждение · 1 из 2', resetStepTwo: 'Последнее предупреждение · 2 из 2',
+      resetWarningOne: 'Аккаунт: {account}. {type}. Будет безвозвратно потрачен один сброс. Это не таймер автоматического обновления квоты.',
+      resetWarningTwo: 'Аккаунт: {account}. {type}. Расход этого сброса нельзя отменить. Продолжайте, только если хотите потратить его сейчас.',
+      resetContinue: 'К последнему предупреждению', resetSpend: 'Да, потратить сброс', resetCancel: 'Отмена',
+      resetUnknown: 'Результат неизвестен. Не повторяйте расход. Проверьте квоту и обновите список сбросов.',
+      resetDone: 'Сброс потрачен. Запрошено обновление квоты.', resetActionError: 'Подтверждение не удалось. Отмените и обновите список.',
+      resetUpdated: 'Список обновлён: {time}', resetFreshness: 'Актуальность: {value}',
+    })
+    Object.assign(copy.zh, {
+      resetLimit: '重置额度', resetRefresh: '刷新重置次数', resetLoading: '正在加载重置次数…',
+      resetEmpty: '没有可用的重置次数。', resetError: '无法加载重置次数，请刷新列表。',
+      resetExpires: '有效期至：{time}', resetNoExpiry: '未提供有效期', resetType: '重置类型：{type}',
+      resetUnknownType: '未指定', resetStepOne: '警告 · 第 1/2 步', resetStepTwo: '最终警告 · 第 2/2 步',
+      resetWarningOne: '账号：{account}。{type}。这将永久消耗一次重置，并非额度自动恢复倒计时。',
+      resetWarningTwo: '账号：{account}。{type}。消耗此重置无法撤销。仅在确定现在使用时继续。',
+      resetContinue: '继续查看最终警告', resetSpend: '是，消耗一次重置', resetCancel: '取消',
+      resetUnknown: '结果未知，请勿重复消耗。请检查额度并刷新重置列表。',
+      resetDone: '已消耗重置，已请求刷新额度。', resetActionError: '确认失败，请取消并刷新列表。',
+      resetUpdated: '列表更新时间：{time}', resetFreshness: '新鲜度：{value}',
+    })
+
+    copy.en.resetCodexType = 'Full reset of Codex rate limits'
+    copy.ru.resetCodexType = 'Полный сброс лимитов Codex'
+    copy.zh.resetCodexType = '完全重置 Codex 速率限制'
+
+    copy.en.resetDescription = 'Restores eligible 5-hour/weekly Codex limits; does not change your plan.'
+    copy.ru.resetDescription = 'Восстанавливает доступные 5-часовые/недельные лимиты Codex; не меняет тариф.'
+    copy.zh.resetDescription = '恢复符合条件的 Codex 5 小时/每周额度；不会更改套餐。'
+    copy.en.resetWait = 'Please wait…'
+    copy.ru.resetWait = 'Подождите…'
+    copy.zh.resetWait = '请稍候…'
+
+    Object.assign(copy.ru, { resetNothing: 'Лимиты уже восстановлены: сейчас сбрасывать нечего.', resetNoCredit: 'Этот сброс больше недоступен. Обновите список.', resetAlready: 'Этот сброс уже был использован. Обновите список.' })
+    Object.assign(copy.en, { resetNothing: 'Limits are already restored; nothing to reset now.', resetNoCredit: 'This reset is no longer available. Refresh the list.', resetAlready: 'This reset has already been used. Refresh the list.' })
+    Object.assign(copy.zh, { resetNothing: '额度已恢复，目前无需重置。', resetNoCredit: '此次重置已不可用，请刷新列表。', resetAlready: '此次重置已使用，请刷新列表。' })
+    Object.assign(copy.ru, { resetCardTitle: 'Полный сброс', resetCardsTitle: 'Доступные сбросы', resetCardExpiry: 'До {time}' })
+    Object.assign(copy.en, { resetCardTitle: 'Full reset', resetCardsTitle: 'Available resets', resetCardExpiry: 'Until {time}' })
+    Object.assign(copy.zh, { resetCardTitle: '完全重置', resetCardsTitle: '可用重置', resetCardExpiry: '有效期至 {time}' })
+    function MiniCardOrb({ seed = 0 }) {
+      return h('span', { className: 'gl-mini-orb', 'aria-hidden': true, style: { '--gl-orb-phase': '-' + (seed * 7.13).toFixed(2) + 's', '--gl-orb-direction': seed % 2 ? 'reverse' : 'normal' } }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' })))
+    }
+    function ResetChoiceCard({ children, disabled, onClick, ...props }) {
+      const node = React.useRef(null), engine = React.useRef(null)
+      React.useEffect(() => {
+        const media = matchMedia('(prefers-reduced-motion: reduce)')
+        const base = .65 + Math.random() * .7
+        const model = { rate: base, target: base, velocity: 0, lift: 0, liftTarget: 0, liftVelocity: 0, raf: 0, last: 0 }
+        engine.current = model
+        const animations = () => node.current?.getAnimations({ subtree: true }).filter(a => ['gl-orb-turn','gl-orb-drift','gl-orb-breathe'].includes(a.animationName)) ?? []
+        const render = () => {
+          if (!node.current) return
+          node.current.style.transform = 'translateY(' + model.lift.toFixed(2) + 'px)'
+          for (const animation of animations()) animation.updatePlaybackRate(Math.max(.5, model.rate))
+        }
+        const frame = time => {
+          const dt = Math.min(model.last ? (time-model.last)/1000 : 1/60,1/30); model.last=time
+          for(let i=0;i<4;i++) {
+            model.velocity += (-260*(model.rate-model.target)-24*model.velocity)*dt/4; model.rate+=model.velocity*dt/4
+            model.liftVelocity += (-420*(model.lift-model.liftTarget)-20*model.liftVelocity)*dt/4; model.lift+=model.liftVelocity*dt/4
+          }
+          render()
+          if(Math.abs(model.rate-model.target)>.001||Math.abs(model.velocity)>.01||Math.abs(model.lift-model.liftTarget)>.01||Math.abs(model.liftVelocity)>.01)model.raf=requestAnimationFrame(frame)
+          else {model.raf=0;model.last=0}
+        }
+        model.hot = value => {
+          model.target=base*(value?2.8:1);model.liftTarget=value?-4:0
+          if(media.matches){cancelAnimationFrame(model.raf);model.raf=0;model.lift=0;model.rate=base;render()}
+          else if(!model.raf)model.raf=requestAnimationFrame(frame)
+        }
+        const reduce=()=>model.hot(false);media.addEventListener('change',reduce)
+        render();return()=>{cancelAnimationFrame(model.raf);media.removeEventListener('change',reduce);engine.current=null}
+      }, [])
+      return h('button', { ...props, ref: node, type:'button', disabled,
+        onPointerEnter:()=>{if(!disabled)engine.current?.hot(true)},onPointerLeave:()=>engine.current?.hot(false),
+        onFocus:()=>{if(!disabled)engine.current?.hot(true)},onBlur:()=>engine.current?.hot(false),onClick },children)
+    }
+
+    Object.assign(copy.ru, {
+      resetBusyError: 'Аккаунт занят работающей сессией. Дождитесь её завершения и выберите сброс снова.',
+      resetAuthError: 'Авторизация аккаунта истекла или отклонена. Обновите авторизацию в настройках ChatGPT.',
+      resetCreditError: 'Этот сброс уже недоступен или истёк. Обновите данные верхней кнопкой ↻.',
+      resetConsentError: 'Подтверждение истекло или аккаунт изменился. Выберите сброс заново.',
+      resetOriginError: 'Запрос заблокирован проверкой адреса окна DSH. Обновите страницу; если повторится, сообщите код ниже.',
+      resetNetworkError: 'Сервис сбросов недоступен или ограничивает запросы. Повторите позже.',
+    })
+    Object.assign(copy.en, { resetBusyError: 'Account is busy in a running session. Wait for it to finish, then select the reset again.', resetAuthError: 'Account authorization expired or was rejected. Reauthorize in ChatGPT settings.', resetCreditError: 'This reset expired or is no longer available. Refresh using ↻ above.', resetConsentError: 'Confirmation expired or the account changed. Select the reset again.', resetOriginError: 'Blocked by the DSH origin check. Reload the page and report the code if it persists.', resetNetworkError: 'Reset service unavailable or rate limited. Try later.' })
+    Object.assign(copy.zh, { resetBusyError: '账号正在被运行中的会话使用，请等待结束后重试。', resetAuthError: '账号授权已过期或被拒绝，请在设置中重新授权。', resetCreditError: '此重置已过期或不可用，请点击上方 ↻ 刷新。', resetConsentError: '确认已过期或账号已更改，请重新选择。', resetOriginError: 'DSH 来源检查已阻止请求，请刷新页面。', resetNetworkError: '重置服务不可用或请求受限，请稍后重试。' })
+    function resetErrorKey(code) {
+      if (code === 'ACCOUNT_BUSY' || code === 'LOGIN_IN_PROGRESS') return 'resetBusyError'
+      if (['RESET_TOKEN_EXPIRED','RESET_SIGNED_OUT','RESET_AUTH','ACCOUNT_SIGNED_OUT'].includes(code)) return 'resetAuthError'
+      if (code === 'RESET_CREDIT_UNAVAILABLE') return 'resetCreditError'
+      if (['RESET_CONFIRMATION_INVALID','RESET_CONFIRMATION_EXPIRED','RESET_ACCOUNT_CHANGED'].includes(code)) return 'resetConsentError'
+      if (code === 'RESET_FORBIDDEN_ORIGIN' || code === 'RESET_CSRF_INVALID') return 'resetOriginError'
+      if (['RESET_NETWORK','RESET_THROTTLED','RESET_HTTP','RESET_UNAVAILABLE'].includes(code)) return 'resetNetworkError'
+      return 'resetActionError'
+    }
+    function ResetMenu({ t, accountId, accountLabel, disabled, onConsumed, onBusyChange, autoOpen = false }) {
+      const [open, setOpen] = React.useState(false)
+      const [data, setData] = React.useState(null)
+      const [flow, setFlow] = React.useState(null)
+      const [busy, setBusy] = React.useState(false)
+      const [message, setMessage] = React.useState('')
+      const [errorCode, setErrorCode] = React.useState('')
+      const root = React.useRef(null), head = React.useRef(null), body = React.useRef(null)
+      const cancelButton = React.useRef(null), epoch = React.useRef(0), controller = React.useRef(null)
+      const lock = React.useRef(false), armed = React.useRef(false), consuming = React.useRef(false)
+      const flowRef = React.useRef(null)
+      const cancelNonce = pending => {
+        if (pending?.nonce) request('api/chatgpt-resets', { action: 'cancel', accountId: pending.accountId, nonce: pending.nonce }).catch(() => {})
+      }
+      const current = React.useRef({ accountId, open, disabled })
+      current.current = { accountId, open, disabled }
+      const menuId = React.useId()
+      const tr = (key, vars) => {
+        let value = t(key)
+        Object.entries(vars || {}).forEach(([k, v]) => { value = String(value).split('{' + k + '}').join(String(v)) })
+        return value
+      }
+      const stamp = value => {
+        const date = new Date(value)
+        return value && Number.isFinite(date.getTime()) ? date.toLocaleString() : tr('resetNoExpiry')
+      }
+      const typeText = credit => tr('resetType', { type: credit?.resetType === 'codex_rate_limits' ? tr('resetCodexType') : tr('resetUnknownType') })
+      const invalidate = () => {
+        if (consuming.current) return
+        cancelNonce(flowRef.current); flowRef.current = null
+        epoch.current++; controller.current?.abort(); controller.current = null
+        lock.current = false; armed.current = false; setBusy(false); setFlow(null)
+      }
+      const close = () => { if (consuming.current) return; invalidate(); setOpen(false); head.current?.focus() }
+      React.useEffect(() => {
+        invalidate(); setOpen(autoOpen); setData(null); setMessage(''); setErrorCode('')
+        if (autoOpen) void load(false)
+        return () => { epoch.current++; controller.current?.abort(); if (!consuming.current) { cancelNonce(flowRef.current); flowRef.current = null } }
+      }, [accountId, autoOpen])
+      React.useEffect(() => { if (disabled && !consuming.current && flowRef.current) { invalidate(); setOpen(autoOpen) } }, [disabled, autoOpen])
+      const load = async refresh => {
+        if (!accountId || lock.current) return
+        const token = ++epoch.current
+        controller.current?.abort(); controller.current = new AbortController()
+        lock.current = true; setBusy(true); setFlow(null); setMessage('')
+        try {
+          const result = await request(refresh ? 'api/chatgpt-resets' : 'api/chatgpt-resets?accountId=' + encodeURIComponent(accountId),
+            refresh ? { action: 'list', accountId } : undefined, controller.current.signal)
+          if (token !== epoch.current) return
+          if (result?.error || !Array.isArray(result?.credits) || result.availableCount === null) throw new Error('invalid-list')
+          setData(result)
+        } catch (error) { if (token === epoch.current && error.name !== 'AbortError') { setData(null); setMessage('resetError') } }
+        finally { if (token === epoch.current) { lock.current = false; setBusy(false) } }
+      }
+      const change = async (action, credit) => {
+        if (lock.current || disabled || !open || !accountId) return
+        if (action !== 'begin' && !armed.current) return
+        if (action === 'advance' && flow?.stage !== 1 || action === 'consume' && flow?.stage !== 2) return
+        armed.current = false; lock.current = true; setBusy(true); setMessage(''); setErrorCode('')
+        const token = ++epoch.current
+        const payload = action === 'begin' ? { creditId: credit.id } : { nonce: flow.nonce }
+        if (action === 'consume') { consuming.current = true; try { onBusyChange?.(true) } catch (_) {} }
+        try {
+          const result = await request('api/chatgpt-resets', { action, accountId, ...payload })
+          if (token !== epoch.current) {
+            if (action !== 'consume') cancelNonce({ accountId, nonce: result?.nonce })
+            else if (result?.outcome === 'reset') { try { onConsumed?.(accountId, result) } catch (_) {} }
+            return
+          }
+          if (action === 'consume') {
+            flowRef.current = null; setFlow(null); setData(null)
+            const success = result?.outcome === 'reset'
+            setMessage(({ reset: 'resetDone', nothing_to_reset: 'resetNothing', no_credit: 'resetNoCredit', already_redeemed: 'resetAlready' })[result?.outcome] ?? 'resetUnknown')
+            if (success) { try { onConsumed?.(accountId, result) } catch (_) {} }
+          } else {
+            const stage = action === 'begin' ? 1 : 2
+            if (result?.stage !== stage || typeof result.nonce !== 'string' || !result.nonce) throw new Error('invalid-confirmation')
+            flowRef.current = { accountId, stage, nonce: result.nonce, credit: credit || flow.credit }
+            setFlow(flowRef.current)
+          }
+        } catch (error) {
+          if (token === epoch.current) {
+            const code = typeof error?.message === 'string' && /^[A-Z_]{1,60}$/.test(error.message) ? error.message : 'RESET_REQUEST_FAILED'
+            setFlow(null); if (action === 'consume') setData(null)
+            setErrorCode(code)
+            setMessage(action === 'consume' ? 'resetUnknown' : resetErrorKey(code))
+          }
+        } finally {
+          if (action === 'consume') { consuming.current = false; try { onBusyChange?.(false) } catch (_) {} }
+          if (token === epoch.current) { lock.current = false; setBusy(false) }
+        }
+      }
+      // Every new warning focuses Cancel, not the next destructive action. A new
+      // pointerdown or non-repeating keydown ON that stage's button must arm it.
+      React.useEffect(() => { armed.current = false; if (flow) cancelButton.current?.focus() }, [flow?.stage])
+      const arm = event => {
+        if (event.type === 'pointerdown' && event.button === 0 && event.detail < 2 || event.type === 'keydown' && !event.repeat && (event.key === 'Enter' || event.key === ' ')) armed.current = true
+      }
+      const credits = (data?.credits || []).filter(c => c && c.status === 'available')
+      const button = (label, onClick, extra) => h('button', { type: 'button', onClick, disabled: busy || disabled || !open, ...extra }, label)
+      return h('div', {
+        ref: root, className: 'gpt-reset-menu' + (autoOpen ? ' gpt-reset-auto' : ''),
+        onKeyDown: event => { if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); if (autoOpen) invalidate(); else close() } },
+      }, h('style', null, `
+        .gpt-reset-menu{position:relative;width:100%;max-width:100%;margin-top:6px;color:var(--dsw-alias-label-primary);font:inherit}
+        .gpt-reset-menu button{font:inherit;font-size:12px;color:inherit;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-module-platform);border-radius:7px;padding:6px 9px;text-align:left;cursor:pointer;white-space:normal}
+        .gpt-reset-menu button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
+        .gpt-reset-menu button:disabled{opacity:.5;cursor:default}.gpt-reset-menu button:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
+        .gpt-reset-menu .reset-head{height:28px;display:inline-flex;align-items:center;gap:8px;padding:0 9px;font-size:11px;font-weight:500;background:var(--dsw-alias-bg-layer-1)}
+        .gpt-reset-menu .reset-toggle{display:inline-block;font-size:11px;line-height:1;transition:transform .12s ease}
+        .gpt-reset-menu .reset-head[aria-expanded=true] .reset-toggle{transform:rotate(180deg)}
+        .gpt-reset-menu .reset-body{position:relative;margin-top:6px;max-height:240px;overflow:auto;overscroll-behavior:contain;padding:9px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:9px;background:var(--dsw-alias-bg-layer-1);animation:gl-reset-dropdown-in .12s ease-out}
+        .gpt-reset-menu .reset-body[hidden]{display:none}
+        .gpt-reset-menu .reset-row{margin:0 0 7px;opacity:1}.gpt-reset-menu .reset-row:empty{display:none}.gpt-reset-menu .reset-row:last-child{margin-bottom:0}
+        .gpt-reset-menu .reset-row>button{width:100%;min-height:28px}
+        .gpt-reset-menu .reset-row:has(>button)+.reset-row:has(>button){padding-top:7px;border-top:1px solid var(--dsw-alias-border-l2)}
+        .gpt-reset-menu small{display:block;color:var(--dsw-alias-label-tertiary);font-size:10px;line-height:1.45;overflow-wrap:anywhere}
+        .gpt-reset-menu p{font-size:12px;line-height:1.5;overflow-wrap:anywhere;margin:7px 0}
+        .gpt-reset-menu .reset-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+        @keyframes gl-reset-dropdown-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
+        @media(prefers-reduced-motion:reduce){.gpt-reset-menu .reset-body{animation:none}.gpt-reset-menu .reset-toggle{transition:none}}
+        .gpt-reset-auto .reset-body{margin-top:0;padding:0;border:0;background:transparent;max-height:200px}
+        .reset-choice-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;line-height:16px;color:var(--dsw-alias-label-tertiary);margin:0 0 5px}.reset-choice-heading time{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums}
+        .reset-choice-cards{display:flex;justify-content:center;flex-wrap:wrap;gap:6px;padding:7px 2px 5px;scrollbar-width:thin}
+        .gpt-reset-menu .reset-choice-card{position:relative;isolation:isolate;overflow:hidden;box-sizing:border-box;width:122px;flex:0 0 122px;height:66px;min-width:0;display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:2px;padding:6px 7px;border:1px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-xl,12px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
+        .reset-choice-card>span:not(.reset-choice-orb),.reset-choice-card>strong{position:relative;z-index:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .reset-choice-card>strong{font-size:11px;line-height:16px;font-weight:600}
+        .reset-choice-number{font-size:9px;line-height:12px;color:var(--dsw-alias-label-tertiary)}
+        .reset-choice-expiry{font-size:9px;line-height:13px;color:var(--dsw-alias-label-secondary)}
+        .reset-choice-orb{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0;border-radius:inherit}
+        .reset-choice-orb::after{content:'';position:absolute;inset:0;background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 42%,transparent)}
+        .gpt-reset-menu .reset-choice-card:hover:not(:disabled){border-color:var(--dsw-alias-state-business-primary);background:var(--dsw-alias-bg-layer-1)}
+        .reset-choice-card:hover:not(:disabled) .gl-card-orb,.reset-choice-card:focus-visible .gl-card-orb{opacity:.45;filter:saturate(1.2)}
+        .reset-choice-card .gl-card-orb::after{backdrop-filter:none}
+        .gpt-reset-auto .reset-body>.reset-row:last-child>button{width:auto;padding:3px 6px;font-size:10px;min-height:22px;background:transparent}
+
+      `), !autoOpen ? h('button', {
+        ref: head, type: 'button', className: 'reset-head', disabled: disabled || !accountId || consuming.current,
+        'aria-expanded': open, 'aria-controls': menuId,
+        onClick: () => { if (open) close(); else { setOpen(true); setMessage(''); load(false) } },
+      }, tr('resetLimit') + (typeof data?.availableCount === 'number' ? ' · ' + data.availableCount : ''), h('span', { className: 'reset-toggle', 'aria-hidden': true }, '▾')) : null,
+      h('div', { id: menuId, ref: body, className: 'reset-body', hidden: !open, 'aria-hidden': !open, inert: !open ? '' : undefined },
+        !autoOpen ? h('small', { className: 'reset-row', 'data-reset-row': true }, accountLabel || accountId) : null,
+        h('div', { role: 'status', 'aria-live': 'polite', className: 'reset-row', 'data-reset-row': true },
+          busy ? tr('resetLoading') : message ? h(React.Fragment, null, tr(message), errorCode ? h('small', { style: { marginTop: '3px', fontFamily: 'monospace' } }, errorCode) : null) : null),
+        flow ? h('div', { className: 'reset-row', 'data-reset-row': true, role: 'group', 'aria-label': tr(flow.stage === 1 ? 'resetStepOne' : 'resetStepTwo') },
+          h('strong', null, tr(flow.stage === 1 ? 'resetStepOne' : 'resetStepTwo')),
+          h('p', null, tr(flow.stage === 1 ? 'resetWarningOne' : 'resetWarningTwo', { account: accountLabel || accountId, type: typeText(flow.credit) })),
+          h('small', null, tr('resetExpires', { time: stamp(flow.credit.expiresAt) })),
+          h('div', { className: 'reset-actions' },
+            button(tr(consuming.current ? 'resetWait' : 'resetCancel'), () => { if (!consuming.current) { invalidate(); setMessage('') } }, { ref: cancelButton, disabled: !open || consuming.current }),
+            button(tr(flow.stage === 1 ? 'resetContinue' : 'resetSpend'), () => change(flow.stage === 1 ? 'advance' : 'consume'), {
+              key: 'confirm-stage-' + flow.stage, onPointerDown: arm, onKeyDown: arm,
+            }))) : h(React.Fragment, null,
+          !busy && !credits.length && !message ? h('p', { className: 'reset-row', 'data-reset-row': true }, tr('resetEmpty')) : null,
+           h('div', { className: 'reset-choice-cards' }, credits.map((credit, index) =>
+             h(ResetChoiceCard, { key: credit.id, className: 'reset-choice-card',
+               title: typeText(credit) + '. ' + tr('resetDescription') + ' · ' + tr('resetExpires', { time: stamp(credit.expiresAt) }),
+               'aria-label': typeText(credit) + ' · ' + tr('resetExpires', { time: stamp(credit.expiresAt) }),
+               disabled: busy || disabled || !open || credit.resetType !== 'codex_rate_limits' || !!(credit.expiresAt && new Date(credit.expiresAt).getTime() <= Date.now()), onClick: () => change('begin', credit) },
+               h('span', { className: 'reset-choice-orb', 'aria-hidden': true, style: { '--gl-orb-phase': '-' + (index * 7.13).toFixed(2) + 's', '--gl-orb-direction': index % 2 ? 'reverse' : 'normal' } }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' }))),
+               h('strong', null, tr('resetCardTitle')),
+               h('span', { className: 'reset-choice-expiry' }, credit.expiresAt ? tr('resetCardExpiry', { time: new Date(credit.expiresAt).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }) : tr('resetNoExpiry')),
+               ))),
+        )))
+    }
+
+    function createOrbLink() {
+      const sources = new Map(), mirrors = new Map()
+      return { sources, mirrors,
+        sync(id) {
+          const source = sources.get(id); if (!source) return
+          const srcAnimations = source.getAnimations?.({ subtree: true }) ?? []
+          for (const [node, owner] of mirrors) {
+            if (owner !== id || !node.isConnected) continue
+            for (const key of ['--gl-orb-phase', '--gl-orb-direction']) node.style.setProperty(key, source.style.getPropertyValue(key))
+            node.dataset.orbHot = source.dataset.orbHot ?? 'false'
+            node.dataset.offscreen = source.dataset.offscreen ?? 'false'
+            const targetAnimations = node.getAnimations?.({ subtree: true }) ?? []
+            for (const target of targetAnimations) {
+              const original = srcAnimations.find(a => a.animationName === target.animationName)
+              if (!original || !['gl-orb-turn', 'gl-orb-drift', 'gl-orb-breathe'].includes(original.animationName)) continue
+              target.playbackRate = original.playbackRate
+              if (typeof original.currentTime === 'number') target.currentTime = original.currentTime
+              if (original.playState === 'paused') target.pause()
+              else if (target.playState === 'paused') target.play()
+            }
+          }
+        },
+      }
+    }
+    function OrbDecoration() {
+      return h('span', { className: 'gl-card-orb-clip', 'aria-hidden': true }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' }), h('span', { className: 'gl-card-orb-rim' })))
+    }
+
+    Object.assign(copy.ru, { cardResetIn: 'Сброс: {span}' })
+    Object.assign(copy.en, { cardResetIn: 'Reset: {span}' })
+    Object.assign(copy.zh, { cardResetIn: '重置：{span}' })
+    Object.assign(copy.ru, { cardResetCount: 'Сбросы: {n}', cardResetCountHint: 'Доступные ручные сбросы лимитов Codex' })
+    Object.assign(copy.en, { cardResetCount: 'Resets: {n}', cardResetCountHint: 'Available manual Codex limit resets' })
+    Object.assign(copy.zh, { cardResetCount: '重置：{n}', cardResetCountHint: '可用的 Codex 手动额度重置' })
+    function accountResetWindow(card) {
+      const windows = card?.windows ?? []
+      return windows.find(w => w.windowDurationMins === 10080 && !w.id?.includes(':')) ?? windows.find(w => !w.id?.includes(':')) ?? windows[0]
+    }
+    function accountResetCaption(t, card, now) {
+      const w = accountResetWindow(card)
+      return Number.isFinite(w?.resetsAt) ? text(t, 'cardResetIn', { span: span(t, w.resetsAt - now) }) : text(t, 'noReset')
+    }
+    function accountResetTitle(t, card) {
+      const w = accountResetWindow(card)
+      return Number.isFinite(w?.resetsAt) ? windowLabel(t, w) + ' · ' + new Date(w.resetsAt).toLocaleString() : text(t, 'noReset')
+    }
     function accountFill(card) {
       const windows = card?.windows ?? []
       const window = windows.find(w => w.windowDurationMins === 10080 && !w.id?.includes(':')) ?? windows.find(w => !w.id?.includes(':')) ?? windows[0]
       return window && Number.isFinite(window.usedPercent) ? Math.max(0, Math.min(100, 100 - window.usedPercent)) : null
     }
-    function WindowRow({ t, window, now, card, pending, onRefresh }) {
+    function WindowRow({ t, window, now, card, pending, onRefresh, orbLink, accountId, resetControl }) {
+      const surface = React.useRef(null)
+      React.useEffect(() => {
+        const node = surface.current
+        if (!node || !orbLink || !accountId) return
+        orbLink.current.mirrors.set(node, accountId)
+        const frame = requestAnimationFrame(() => orbLink.current.sync(accountId))
+        return () => { cancelAnimationFrame(frame); orbLink.current.mirrors.delete(node) }
+      }, [orbLink, accountId])
       const percent = Number.isFinite(window.usedPercent) ? Math.max(0, Math.min(100, 100 - window.usedPercent)) : null
       const danger = percent !== null && percent <= 10
       const label = windowLabel(t, window)
       const title = label === text(t, 'windowWeekly') ? text(t, 'quotaWeekly') : label === text(t, 'windowFiveHour') ? text(t, 'quotaFiveHour') : label
-      return h('div', { className: 'gl-limit' },
+      return h('div', { ref: surface, className: 'gl-limit' + (orbLink ? ' gl-limit-animated' : ''), style: { '--gl-quota-fill': '100%' } },
+        orbLink ? h(OrbDecoration) : null,
         h('div', { className: 'gl-limit-title' },
           h('span', null, title),
           onRefresh ? h('span', { className: 'gl-limit-update' },
@@ -563,12 +911,12 @@ window.__ModuleLoader__.load({
           h('span', { title: window.resetsAt == null ? undefined : shortTime(window.resetsAt) }, window.resetsAt == null ? text(t, 'noReset') : text(t, 'resetCountdown', { span: span(t, window.resetsAt - now) })),
           h('span', { 'data-tone': danger ? 'error' : undefined }, percent === null ? text(t, 'pickerUnknown') : text(t, 'remaining', { n: String(Math.round(percent)) }))),
         percent !== null ? h('div', { className: 'gl-limit-track', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(percent), 'aria-label': title + ' · ' + text(t, 'remaining', { n: String(Math.round(percent)) }) },
-          h('div', { className: 'gl-limit-fill', 'data-tone': danger ? 'error' : undefined, style: { width: percent + '%' } })) : null)
+          h('div', { className: 'gl-limit-fill', 'data-tone': danger ? 'error' : undefined, style: { width: percent + '%' } })) : null, resetControl)
     }
-    function RemainingQuota({ t, card, now, pending, onRefresh }) {
+    function RemainingQuota({ t, card, now, pending, onRefresh, orbLink, accountId, accountLabel, resetDisabled, onConsumed, onResetBusyChange }) {
       return h('div', { className: 'gl-limit-stack' },
-        card?.windows?.length ? card.windows.map(window => h(WindowRow, { key: window.id, t, window, now, card, pending, onRefresh })) :
-          h('div', { className: 'gl-limit-meta' }, h('span', null, text(t, 'pickerUnknown')), h('button', { type: 'button', className: 'gl-icon', disabled: pending, 'aria-label': text(t, 'refresh'), 'data-spin': pending ? 'true' : undefined, onClick: onRefresh }, RefreshIcon)))
+        card?.windows?.length ? card.windows.map((window, index) => h(WindowRow, { key: window.id, t, window, now, card, pending, onRefresh, orbLink, accountId, resetControl: accountId && index === (card.windows.findIndex(w => w.windowDurationMins === 10080 && !w.id?.includes(':')) < 0 ? 0 : card.windows.findIndex(w => w.windowDurationMins === 10080 && !w.id?.includes(':'))) ? h(ResetMenu, { t, accountId, accountLabel, disabled: resetDisabled, onConsumed, onBusyChange: onResetBusyChange }) : null })) :
+          h('div', null, h('div', { className: 'gl-limit-meta' }, h('span', null, text(t, 'pickerUnknown')), h('button', { type: 'button', className: 'gl-icon', disabled: pending, 'aria-label': text(t, 'refresh'), 'data-spin': pending ? 'true' : undefined, onClick: onRefresh }, RefreshIcon)), accountId ? h(ResetMenu, { t, accountId, accountLabel, disabled: resetDisabled, onConsumed, onBusyChange: onResetBusyChange }) : null))
     }
 
     function QuotaCard({ t, card, pending, onRefresh }) {
@@ -720,6 +1068,116 @@ window.__ModuleLoader__.load({
     Object.assign(copy.en, { pickerPreview: 'Preview', pickerReasoning: 'Reasoning', pickerApplyHint: 'Click a model to apply your selection', pickerTabOther: 'Other', pickerNotApplied: 'Not applied yet' })
     Object.assign(copy.zh, { pickerPreview: '预览', pickerReasoning: '推理', pickerApplyHint: '点击模型以应用选择', pickerTabOther: '其他', pickerNotApplied: '尚未应用' })
     const pickerCss = `
+.gl-picker-dialog.gl-picker-widget{position:fixed;inset:auto;margin:0;max-width:calc(100vw - 16px);max-height:var(--gl-widget-height,620px);z-index:1000;border-radius:12px;clip-path:inset(0 round 12px);box-shadow:0 8px 28px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent)}
+.gl-picker-dialog.gl-picker-widget:popover-open{display:block}
+.gl-picker-dialog.gl-picker-widget::backdrop{background:transparent;pointer-events:none}
+.gl-picker-widget>.gl-picker-shell{max-height:calc(var(--gl-widget-height,620px) - 2px)}
+.gl-picker-widget .gl-picker-head{padding:8px 10px 6px}
+.gl-picker-widget .gl-picker-head strong{font-size:13px}
+.gl-picker-widget .gl-picker-shell>.gl-picker-head{border-radius:11px 11px 0 0}
+
+/* Four peer groups: a single compact rhythm, without redundant captions. */
+.gl-picker-shell .gl-picker-list{gap:7px}
+.gl-picker-shell .gl-picker-list>.gl-account-mini-grid,
+.gl-picker-shell .gl-picker-list>.gpt-reset-menu,
+.gl-picker-shell .gl-picker-list>.gl-efforts,
+.gl-picker-shell .gl-picker-list>.gl-model-grid{box-sizing:border-box;flex:none;width:100%;min-width:0;margin:0;padding:6px;border:1px solid var(--dsw-alias-border-l2);border-radius:11px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 55%,var(--dsw-alias-bg-module-platform));gap:5px}
+.gl-picker-shell .gl-picker-list>.gpt-reset-menu .reset-body{margin:0;padding:0;border:0;border-radius:0;background:transparent;overflow:visible;max-height:none}
+.gl-picker-shell .gl-picker-list>.gpt-reset-menu .reset-choice-cards{margin:0;padding:0;gap:5px}
+.gl-picker-shell .gl-picker-list>.gpt-reset-menu .reset-row{margin:0}
+.gl-picker-shell .gl-picker-list>.gpt-reset-menu .reset-row:empty{display:none}
+.gl-picker-shell .gl-picker-list>.gl-account-mini-grid{align-items:stretch}
+.gl-picker-shell .gl-picker-list>.gl-model-grid:empty{display:none}
+
+.gl-account-mini-card>.gl-mini-orb{clip-path:inset(calc(100% - var(--gl-account-quota-fill,0%)) 0 0 0);transition:clip-path .65s cubic-bezier(.22,1,.36,1)}
+.gl-account-mini-card[data-quota-stale=true]>.gl-mini-orb{opacity:.65}
+@media(prefers-reduced-motion:reduce){.gl-account-mini-card>.gl-mini-orb{transition:none}}
+
+.gl-account-mini-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;flex:none;padding:5px 0;min-width:0}
+.gl-account-mini-grid>.gl-account-mini-card{position:relative;isolation:isolate;overflow:hidden;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:2px;min-width:0;height:86px;padding:6px;border:1px solid var(--dsw-alias-border-l3);border-radius:9px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:10px;line-height:13px;text-align:center;cursor:pointer}
+.gl-account-mini-card>strong,.gl-account-mini-card>span:not(.gl-mini-orb){position:relative;z-index:1;display:block;max-width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gl-account-mini-card>.gl-account-mini-name{font-size:11px;line-height:15px;font-weight:500}
+.gl-account-mini-card>span:not(.gl-mini-orb){color:var(--dsw-alias-label-secondary);font-size:9px;line-height:12px}
+.gl-account-mini-grid>.gl-account-mini-card[aria-pressed=true]{border-color:var(--dsw-alias-state-business-primary);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--dsw-alias-state-business-primary) 30%,transparent)}
+.gl-account-mini-card>.gl-account-mini-active{color:var(--dsw-alias-state-business-primary)!important}
+.gl-account-mini-card:hover:not(:disabled) .gl-card-orb,.gl-account-mini-card:focus-visible .gl-card-orb{opacity:.45;filter:saturate(1.2)}
+.gl-account-mini-card:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:-2px}
+.gl-account-mini-card:disabled{opacity:.5;cursor:default}
+@media(max-width:380px){.gl-account-mini-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Account cards use the same centered mini-card material as reset cards. */
+.gl-picker-list .gl-fan,.gl-picker-list .gl-fan[data-many=true]{height:auto;display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:5px;margin:0;padding:7px 2px 5px}
+.gl-picker-list .gl-fan .gl-fan-card,.gl-picker-list .gl-fan[data-many=true] .gl-fan-card{position:relative;left:auto;top:auto;width:106px!important;flex:0 0 106px;height:96px!important;min-height:96px;grid-template-rows:11px 15px 12px 12px 12px 12px;row-gap:1px!important;padding:6px 7px!important;border-radius:9px;border:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-1);text-align:center;transform-origin:center;will-change:transform}
+.gl-picker-list .gl-fan .gl-fan-card>.gl-fan-top{justify-content:center;font-size:9px;line-height:11px}
+.gl-picker-list .gl-fan .gl-fan-card>.gl-fan-name{font-size:11px;line-height:15px;font-weight:500}
+.gl-picker-list .gl-fan .gl-fan-card>.gl-fan-remaining,.gl-picker-list .gl-fan .gl-fan-card>.gl-fan-reset,.gl-picker-list .gl-fan .gl-fan-card>.gl-fan-reset-count,.gl-picker-list .gl-fan .gl-fan-card>.gl-fan-state{font-size:9px;line-height:12px}
+.gl-picker-list .gl-fan .gl-card-orb-clip::after{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 42%,transparent)}
+.gl-picker-list .gl-fan .gl-card-orb{opacity:.23}
+.gl-picker-list .gl-fan .gl-card-orb::after{backdrop-filter:none}
+.gl-picker-list .gl-fan .gl-fan-card:hover:not(:disabled) .gl-card-orb,.gl-picker-list .gl-fan .gl-fan-card:focus-visible .gl-card-orb{opacity:.45;filter:saturate(1.2)}
+
+.gl-fan .gl-fan-card:hover:not(:disabled) .gl-card-orb,.gl-fan .gl-fan-card:focus-visible .gl-card-orb{opacity:.45;filter:saturate(1.2)}
+
+.gl-header-updated{font-size:10px;line-height:16px;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;white-space:nowrap;margin-right:-5px}
+.gl-picker-list .gl-model-cell,.gl-picker-list .gl-effort-button,.gl-picker-list .gpt-reset-menu .reset-choice-card{border:1px solid var(--dsw-alias-border-l3);border-radius:9px;background:var(--dsw-alias-bg-layer-1);font-family:inherit;font-size:11px;font-weight:500;text-align:center;box-sizing:border-box;padding:5px 7px;isolation:isolate}
+.gl-picker-list .gl-model-cell,.gl-picker-list .gl-effort-button{height:32px;min-height:32px;justify-content:center}
+.gl-picker-list .gpt-reset-menu .reset-choice-card{height:44px;justify-content:center;align-items:center}
+.gl-picker-list .reset-choice-card>strong{font-size:11px;font-weight:500;line-height:15px}
+.gl-picker-list .gl-mini-orb,.gl-picker-list .reset-choice-orb{opacity:1}
+.gl-picker-list .gl-mini-orb .gl-card-orb,.gl-picker-list .reset-choice-orb .gl-card-orb{opacity:.23}
+.gl-picker-list .gl-mini-orb::after,.gl-picker-list .reset-choice-orb::after{background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 42%,transparent)}
+
+/* One compact material for resets, effort and models. */
+.gl-picker-list .gpt-reset-menu .reset-choice-card{width:112px;flex-basis:112px;height:48px;padding:5px 7px;gap:1px;border-radius:9px}
+.gl-picker-list .reset-choice-card>strong{font-size:10px;line-height:14px}
+.gl-picker-list .reset-choice-expiry{font-size:9px;line-height:12px}
+.gl-picker-list .reset-choice-cards{gap:5px;padding:5px 2px 3px}
+.gl-picker-list .gl-efforts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;padding-top:3px}
+.gl-picker-list .gl-efforts>span{grid-column:1/-1;font-size:10px;margin:0;line-height:14px}
+.gl-picker-list .gl-effort-button,.gl-picker-list .gl-model-cell{position:relative;isolation:isolate;overflow:hidden;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border:1px solid var(--dsw-alias-border-l3);border-radius:9px;background:var(--dsw-alias-bg-layer-1);padding:5px 6px;color:var(--dsw-alias-label-primary);font-size:11px;line-height:16px;min-height:30px;height:30px;cursor:pointer}
+.gl-picker-list .gl-effort-button[aria-pressed=true],.gl-picker-list .gl-model-cell[aria-pressed=true]{border-color:var(--dsw-alias-state-business-primary);color:var(--dsw-alias-state-business-primary);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--dsw-alias-state-business-primary) 30%,transparent)}
+.gl-picker-list .gl-model-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding-top:3px}
+.gl-mini-label{position:relative;z-index:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gl-mini-orb{position:absolute;inset:0;z-index:0;border-radius:inherit;overflow:hidden;pointer-events:none}
+.gl-mini-orb::after{content:'';position:absolute;inset:0;background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 48%,transparent)}
+.gl-mini-orb .gl-card-orb{opacity:.18}
+.gl-mini-orb .gl-card-orb::after{backdrop-filter:none}
+.gl-effort-button:hover:not(:disabled) .gl-card-orb,.gl-model-cell:hover:not(:disabled) .gl-card-orb,.gl-effort-button:focus-visible .gl-card-orb,.gl-model-cell:focus-visible .gl-card-orb{opacity:.42;filter:saturate(1.2)}
+.gl-picker-list .gl-effort-button:focus-visible,.gl-picker-list .gl-model-cell:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:-2px}
+@media(max-width:380px){.gl-picker-list .gl-model-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Keep header hover paint inside the rounded picker. */
+.gl-picker-dialog{overflow:hidden!important;clip-path:inset(0 round 16px)}
+.gl-picker-shell>.gl-picker-head{overflow:hidden;isolation:isolate;border-radius:15px 15px 0 0}
+.gl-picker-head>.gl-icon{position:relative;flex:0 0 28px;width:28px;height:28px;min-width:28px;min-height:28px;box-sizing:border-box;padding:0;margin:0;overflow:hidden;border-radius:7px;clip-path:inset(0 round 7px);box-shadow:none}
+.gl-picker-head>.gl-icon:hover{box-shadow:none;transform:none}
+.gl-picker-head>.gl-icon::before,.gl-picker-head>.gl-icon::after{display:none!important}
+
+/* Fixed text tracks: labels never shrink into each other. */
+.gl-fan .gl-fan-card{display:grid!important;grid-template-rows:14px 17px 14px 13px 13px 14px;align-content:center;row-gap:2px!important;padding:9px!important;height:120px!important;min-height:120px;overflow:hidden}
+.gl-fan .gl-fan-card>.gl-fan-top{grid-row:1;font-size:10px;line-height:14px}
+.gl-fan .gl-fan-card>.gl-fan-name{grid-row:2;margin:0;font-size:12px;line-height:17px}
+.gl-fan .gl-fan-card>.gl-fan-remaining{grid-row:3;font-size:10px;line-height:14px}
+.gl-fan .gl-fan-card>.gl-fan-reset{grid-row:4;font-size:9px;line-height:13px}
+.gl-fan .gl-fan-card>.gl-fan-reset-count{grid-row:5;font-size:10px;line-height:13px}
+.gl-fan .gl-fan-card>.gl-fan-state{grid-row:6;font-size:10px;line-height:14px}
+.gl-fan .gl-fan-card>.gl-fan-top,.gl-fan .gl-fan-card>.gl-fan-name,.gl-fan .gl-fan-card>.gl-fan-remaining,.gl-fan .gl-fan-card>.gl-fan-reset,.gl-fan .gl-fan-card>.gl-fan-reset-count,.gl-fan .gl-fan-card>.gl-fan-state{min-width:0;min-height:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.gl-fan-reset-count{position:relative;z-index:1;font-size:10px;line-height:13px;color:var(--dsw-alias-label-secondary);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+.gl-fan-card>.gl-fan-reset{position:relative;z-index:1;font-size:9px;line-height:13px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gl-fan-card{gap:3px!important;padding:9px!important}
+.gl-fan[data-many=true] .gl-fan-card{height:120px!important}
+.gl-account-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:8px;flex:none}
+.gl-account-actions>.gpt-reset-menu{margin-top:0}
+.gl-account-refresh{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--dsw-alias-label-tertiary);height:28px;font-variant-numeric:tabular-nums}
+
+
+.gl-limit-animated{position:relative;isolation:isolate;overflow:hidden}
+.gl-limit-animated>.gl-limit-title,.gl-limit-animated>.gl-limit-meta,.gl-limit-animated>.gl-limit-track,.gl-limit-animated>.gpt-reset-menu{position:relative;z-index:1}
+.gl-limit-animated[data-orb-hot=true] .gl-card-orb{opacity:.52;filter:saturate(1.3)}
+.gl-limit-animated[data-offscreen=true] .gl-card-orb,.gl-limit-animated[data-offscreen=true] .gl-card-orb::before,.gl-limit-animated[data-offscreen=true] .gl-card-orb-sheen{animation-play-state:paused}
+
 /* Siri Orb mesh adapted from SmoothUI (MIT), Eduardo Calvo.
    idle: rotation 20/.6=33.333s, sheen 12/(1+.6)*2=15s, breath5.5s. */
 @property --gl-orb-angle{syntax:"<angle>";inherits:false;initial-value:0deg}
@@ -760,7 +1218,7 @@ window.__ModuleLoader__.load({
 .gl-fan-remaining{font-size:11px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gl-fan-state{font-size:10px;line-height:14px;color:var(--dsw-alias-state-business-primary)}
 .gl-fan[data-many=true]{height:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:6px;padding:4px 0}
-.gl-fan[data-many=true] .gl-fan-card{position:relative;top:auto;left:auto;width:100%!important;transform:none!important;height:100px;will-change:auto}
+.gl-fan[data-many=true] .gl-fan-card{position:relative;top:auto;left:auto;width:100%!important;height:100px;will-change:auto}
 @media(prefers-reduced-motion:reduce){.gl-fan-card{will-change:auto}}
 
 .gl-compact-tabs{display:flex;gap:4px;padding:0 12px 8px;flex:none}
@@ -847,92 +1305,22 @@ window.__ModuleLoader__.load({
 @media(max-width:420px){.gl-picker-head{padding:12px}.gl-picker-list{padding:0 10px 12px}.gl-picker-trigger{max-width:230px}.gl-picker-quota{max-width:95px;overflow:hidden;text-overflow:ellipsis}}
 `
     // Motion behavior adapted from DesignBookmark Fan Cards. No global theme or timers.
-    function FanAccounts({ accounts, previewId, currentId, onPreview, quotaText, compactQuota, quotas, selecting, t }) {
-      const root = React.useRef(null), nodes = React.useRef([]), engine = React.useRef(null)
-      const [expanded, setExpanded] = React.useState(false)
-      const [hot, setHot] = React.useState(-1)
-      React.useEffect(() => {
-        const media = matchMedia('(prefers-reduced-motion: reduce)')
-        const spring = (x, k, c) => ({ x, t: x, v: 0, k, c })
-        const model = { fan: spring(1, 220, 18), cards: accounts.map(() => (() => { const base = .65 + Math.random() * .7; return { lift: spring(0, 420, 20), scale: spring(1, 420, 22), energy: spring(base, 260, 24), base, phase: Math.random() * 33, direction: Math.random() > .5 ? 'normal' : 'reverse' } })()), reduced: media.matches, raf: 0, last: 0 }
-        engine.current = model
-        const step = (s, dt) => { s.v += (-s.k * (s.x - s.t) - s.c * s.v) * dt; s.x += s.v * dt }
-        const settled = s => Math.abs(s.x - s.t) < .001 && Math.abs(s.v) < .01
-        let cardWidth = 128, spread = 78
-        model.cards.forEach((card, i) => {
-          const node = nodes.current[i]; if (!node) return
-          node.style.setProperty('--gl-orb-phase', '-' + card.phase.toFixed(3) + 's')
-          node.style.setProperty('--gl-orb-direction', card.direction)
-          card.animations = []
-        })
-        const render = () => {
-          model.cards.forEach((card, i) => {
-            const node = nodes.current[i]; if (!node) return
-            const d = i - (accounts.length - 1) / 2
-            const distance = Math.max(1, (accounts.length - 1) / 2)
-            const x = d * (6 + model.fan.x * (spread - 6))
-            const r = (d / distance) * (3 + model.fan.x * 9)
-            const y = Math.abs(d / distance) * model.fan.x * 8 + card.lift.x
-            if (!model.reduced && node.getAnimations) {
-              if (!card.animations.length || card.animations.some(a => a.playState === 'idle')) card.animations = node.getAnimations({ subtree: true }).filter(a => ['gl-orb-turn', 'gl-orb-drift', 'gl-orb-breathe'].includes(a.animationName))
-              const rate = Math.max(.5, card.energy.x)
-              card.animations.forEach(animation => { if (Math.abs(animation.playbackRate - rate) > .005) animation.updatePlaybackRate(rate) })
-            }
-            node.style.transform = 'translate(calc(-50% + ' + x.toFixed(2) + 'px),' + y.toFixed(2) + 'px) rotate(' + r.toFixed(3) + 'deg) scale(' + card.scale.x.toFixed(4) + ')'
-          })
-        }
-        const frame = time => {
-          const dt = model.last ? Math.min((time - model.last) / 1000, 1 / 30) : 1 / 60; model.last = time
-          for (let j = 0; j < 4; j++) { step(model.fan, dt / 4); model.cards.forEach(c => { step(c.lift, dt / 4); step(c.scale, dt / 4); step(c.energy, dt / 4) }) }
-          render()
-          if (![model.fan, ...model.cards.flatMap(c => [c.lift, c.scale, c.energy])].every(settled)) model.raf = requestAnimationFrame(frame)
-          else { model.raf = 0; model.last = 0 }
-        }
-        model.wake = () => {
-          if (model.reduced) { cancelAnimationFrame(model.raf); model.raf = 0; model.last = 0; [model.fan, ...model.cards.flatMap(c => [c.lift, c.scale, c.energy])].forEach(s => { s.x = s.t; s.v = 0 }); render(); return }
-          if (!model.raf) model.raf = requestAnimationFrame(frame)
-        }
-        const reduce = () => { model.reduced = media.matches; model.cards.forEach(c => { c.animations = [] }); model.wake() }
-        media.addEventListener('change', reduce)
-        const resize = () => {
-          const width = root.current?.clientWidth ?? 400
-          cardWidth = Math.max(100, Math.min(144, width / Math.max(1, accounts.length)))
-          spread = accounts.length < 2 ? 0 : Math.min(110, Math.max(34, (width - cardWidth - 14) / (accounts.length - 1)))
-          nodes.current.forEach(node => { if (node) node.style.width = cardWidth + 'px' })
-          render()
-        }
-        const visibility = () => { if (root.current) root.current.dataset.paused = document.hidden ? 'true' : 'false' }
-        document.addEventListener('visibilitychange', visibility); visibility()
-        const observer = new ResizeObserver(resize); if (root.current) observer.observe(root.current)
-        const visibleCards = new IntersectionObserver(entries => entries.forEach(e => { e.target.dataset.offscreen = e.isIntersecting ? 'false' : 'true' }), { threshold: .01 })
-        nodes.current.forEach(node => { if (node) visibleCards.observe(node) })
-        resize(); model.wake()
-        return () => { cancelAnimationFrame(model.raf); observer.disconnect(); visibleCards.disconnect(); document.removeEventListener('visibilitychange', visibility); media.removeEventListener('change', reduce); if (engine.current === model) engine.current = null }
-      }, [accounts.map(a => a.id).join('|')])
-      React.useEffect(() => {
-        const model = engine.current; if (!model) return
-        // Resting hand is already readable; interaction adds the original fan spread.
-        model.fan.t = expanded ? 1 : .72
-        model.cards.forEach((c, i) => { c.lift.t = i === hot ? -22 : 0; c.scale.t = i === hot ? 1.06 : 1; c.energy.t = c.base * (i === hot ? 2.8 : 1) })
-        model.wake()
-      }, [expanded, hot, accounts.map(a => a.id).join('|')])
-      return h('div', { ref: root, className: 'gl-fan', role: 'group', 'aria-label': text(t, 'gptAccountsBlock'), 'data-many': accounts.length > 4 ? 'true' : undefined,
-        onPointerEnter: () => setExpanded(true), onPointerLeave: () => { setExpanded(false); setHot(-1) },
-        onFocus: () => setExpanded(true), onBlur: e => { if (!e.currentTarget.contains(e.relatedTarget)) { setExpanded(false); setHot(-1) } } },
-        accounts.map((account, i) => h('button', { ref: node => { nodes.current[i] = node }, key: account.id, type: 'button', className: 'gl-fan-card',
-          'aria-pressed': previewId === account.id, 'data-current': currentId === account.id ? 'true' : undefined,
-          style: { zIndex: hot === i ? 30 : previewId === account.id ? 20 : i + 1, '--gl-quota-fill': (account.configured ? accountFill(quotas[account.id]) ?? 0 : 0) + '%' },
-          'data-quota-known': account.configured && accountFill(quotas[account.id]) !== null ? 'true' : 'false',
+    function FanAccounts({ accounts, previewId, currentId, onPreview, quotaText, compactQuota, quotas, selecting, t, now, resets }) {
+      return h('div', { className: 'gl-account-mini-grid', role: 'group', 'aria-label': text(t, 'gptAccountsBlock') },
+        accounts.map((account, index) => h(ResetChoiceCard, {
+          key: account.id, className: 'gl-account-mini-card', disabled: selecting,
+          style: { '--gl-account-quota-fill': (account.configured ? accountFill(quotas[account.id]) ?? 0 : 0) + '%' },
           'data-quota-stale': quotas[account.id]?.freshness === 'stale' ? 'true' : undefined,
-          title: account.label + ' · ' + quotaText(quotas[account.id]),
-          'aria-label': account.label + ' · ' + (account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')) + (currentId === account.id ? ' · ' + text(t, 'activeAccount') : ''),
-          disabled: selecting, onPointerEnter: () => setHot(i), onFocus: () => setHot(i),
-          onClick: () => { const c = engine.current?.cards[i]; if (c && !engine.current.reduced) { c.lift.v = -260; engine.current.wake() }; onPreview(account.id) } },
-          h('span', { className: 'gl-card-orb-clip', 'aria-hidden': true }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' }), h('span', { className: 'gl-card-orb-rim' }))),
-          h('span', { className: 'gl-fan-top' }, h('span', null, 'ChatGPT'), h('span', null, String(i + 1).padStart(2, '0'))),
-          h('strong', { className: 'gl-fan-name' }, account.label.split('@')[0]),
-          h('span', { className: 'gl-fan-remaining' }, account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')),
-          h('span', { className: 'gl-fan-state' }, currentId === account.id ? text(t, 'activeAccount') : previewId === account.id ? text(t, 'pickerPreview') : '\u00a0'))))
+          'aria-pressed': previewId === account.id, 'data-current': currentId === account.id ? 'true' : undefined,
+          title: account.label + ' · ' + quotaText(quotas[account.id]) + ' · ' + accountResetTitle(t, quotas[account.id]),
+          'aria-label': account.label + ' · ' + (account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')),
+          onClick: () => onPreview(account.id),
+        }, h(MiniCardOrb, { seed: index + 11 }),
+          h('strong', { className: 'gl-account-mini-name' }, account.label.split('@')[0]),
+          h('span', null, account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')),
+          h('span', null, account.configured ? accountResetCaption(t, quotas[account.id], now) : '—'),
+          h('span', null, text(t, 'cardResetCount', { n: String(account.configured && Number.isInteger(resets?.[account.id]?.availableCount) ? resets[account.id].availableCount : '—') })),
+          currentId === account.id ? h('span', { className: 'gl-account-mini-active' }, text(t, 'activeAccount')) : null)))
     }
 
     function UnifiedPicker({ t, sessionId, useSession, directory, locked }) {
@@ -940,15 +1328,21 @@ window.__ModuleLoader__.load({
       const { snapshot, refresh, error: accountError } = useAccounts(sessionId)
       const unavailable = useSession(s => s.subagent !== null)
       const busy = useSession(s => s.running || s.awaitingFirstTurn || s.pendingSubmissions.length > 0 || s.removed || s.subagent !== null) || locked
+      const orbLink = React.useRef(null)
+      if (!orbLink.current) orbLink.current = createOrbLink()
       const [open, setOpen] = React.useState(false)
       const [query, setQuery] = React.useState('')
       const [quotas, setQuotas] = React.useState({})
+      const [resets, setResets] = React.useState({})
       const [quotaPending, setQuotaPending] = React.useState({})
       const quotaRequests = React.useRef(new Set())
       const [now, setNow] = React.useState(Date.now())
       React.useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer) }, [])
       const [error, setError] = React.useState('')
       const [selecting, setSelecting] = React.useState(false)
+      const [resetBusy, setResetBusy] = React.useState(false)
+      const [refreshingAll, setRefreshingAll] = React.useState(false)
+      const refreshAllLock = React.useRef(false)
       const [tab, setTab] = React.useState('gpt')
       const [previewId, setPreviewId] = React.useState(null)
       const [otherProvider, setOtherProvider] = React.useState(null)
@@ -976,6 +1370,22 @@ window.__ModuleLoader__.load({
           }
         }))
       }, [])
+      const loadResets = React.useCallback(async (ids, force = false, signal) => {
+        await Promise.all(ids.map(async id => {
+          try {
+            const result = await request('api/chatgpt-resets' + (force ? '' : '?accountId=' + encodeURIComponent(id)), force ? { action: 'list', accountId: id } : undefined, signal)
+            if (!signal?.aborted) setResets(old => ({ ...old, [id]: result?.error ? { availableCount: null } : result }))
+          } catch { if (!signal?.aborted) setResets(old => ({ ...old, [id]: { availableCount: null } })) }
+        }))
+      }, [])
+      React.useEffect(() => {
+        if (!open) return
+        const controller = new AbortController()
+        const ids = accounts.filter(a => a.configured).map(a => a.id)
+        if (ids.length) void loadResets(ids, false, controller.signal)
+        const timer = setInterval(() => { if (ids.length) void loadResets(ids, false, controller.signal) }, 60000)
+        return () => { controller.abort(); clearInterval(timer) }
+      }, [open, accounts.map(a => a.id + a.configured).join(','), loadResets])
       React.useEffect(() => { if (!unavailable) void directory.load().catch(e => setError(e.message)) }, [directory, unavailable])
       React.useEffect(() => {
         const controller = new AbortController()
@@ -984,15 +1394,52 @@ window.__ModuleLoader__.load({
         const timer = setInterval(() => { if (ids.length) void loadQuota(ids, false, controller.signal) }, 60000)
         return () => { controller.abort(); clearInterval(timer) }
       }, [open, selectedId, accounts.map(a => a.id + a.configured).join(','), loadQuota])
-      React.useEffect(() => {
-        const node = dialog.current
-        if (open) { if (node && !node.open) node.showModal() }
-        else if (node?.open) { node.close(); trigger.current?.focus() }
-        return () => { if (node?.open) node.close() }
+      React.useLayoutEffect(() => {
+        const node = dialog.current, anchor = trigger.current
+        if (!node || !anchor || !open) return
+        let frame = 0
+        const place = () => {
+          const box = anchor.getBoundingClientRect(), edge = 8, gap = 7
+          const width = Math.min(440, window.innerWidth - edge * 2)
+          const above = Math.max(0, box.top - edge - gap), below = Math.max(0, window.innerHeight - box.bottom - edge - gap)
+          const upwards = above > below
+          const maxHeight = Math.max(80, Math.min(620, upwards ? above : below))
+          node.style.width = width + 'px'
+          node.style.setProperty('--gl-widget-height', maxHeight + 'px')
+          const height = Math.min(node.getBoundingClientRect().height || maxHeight, maxHeight)
+          node.style.left = Math.max(edge, Math.min(window.innerWidth - width - edge, box.left)) + 'px'
+          node.style.top = Math.max(edge, Math.min(window.innerHeight - height - edge, upwards ? box.top - gap - height : box.bottom + gap)) + 'px'
+          node.dataset.side = upwards ? 'above' : 'below'
+        }
+        if (node.showPopover) node.showPopover()
+        else if (!node.open) node.show()
+        place()
+        node.focus({ preventScroll: true })
+        const schedule = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; place() }) }
+        const observer = new ResizeObserver(schedule); observer.observe(node); observer.observe(anchor)
+        window.addEventListener('resize', schedule)
+        document.addEventListener('scroll', schedule, true)
+        return () => {
+          cancelAnimationFrame(frame); observer.disconnect()
+          window.removeEventListener('resize', schedule); document.removeEventListener('scroll', schedule, true)
+          if (node.hidePopover && node.matches(':popover-open')) node.hidePopover()
+          if (node.open) node.close()
+        }
       }, [open])
-      const close = () => { if (!inFlight.current) { setOpen(false); trigger.current?.focus() } }
+      React.useEffect(() => {
+        if (!open) return
+        const outside = event => {
+          if (!dialog.current?.contains(event.target) && !trigger.current?.contains(event.target) && !inFlight.current && !resetBusy) { setOpen(false); trigger.current?.focus({ preventScroll: true }) }
+        }
+        const escape = event => {
+          if (event.key === 'Escape' && !event.defaultPrevented && !inFlight.current && !resetBusy) { event.preventDefault(); setOpen(false); trigger.current?.focus({ preventScroll: true }) }
+        }
+        document.addEventListener('pointerdown', outside); document.addEventListener('keydown', escape)
+        return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape) }
+      }, [open, resetBusy])
+      const close = () => { if (!inFlight.current && !resetBusy) { setOpen(false); trigger.current?.focus() } }
       const choose = async (account, provider, model) => {
-        if (busy || inFlight.current) return
+        if (busy || resetBusy || inFlight.current) return
         inFlight.current = true; setSelecting(true); setError('')
         let changedAccount = false
         try {
@@ -1035,40 +1482,45 @@ window.__ModuleLoader__.load({
       if (unavailable) return null
       return h(React.Fragment, null,
         h('style', null, css + pickerCss),
-        h('button', { ref: trigger, type: 'button', className: 'gl-picker-trigger', title: triggerLabel, onClick: () => { setQuery(''); setTab(state.current?.provider === 'chatgpt-session' ? 'gpt' : 'other'); setPreviewId(selectedId ?? null); setOtherProvider(state.current?.provider ?? null); setCommonEffort(null); setOpen(true) }, disabled: !!locked, 'aria-haspopup': 'dialog', 'aria-expanded': open },
+        h('button', { ref: trigger, type: 'button', className: 'gl-picker-trigger', title: triggerLabel, onClick: () => { setQuery(''); setTab(state.current?.provider === 'chatgpt-session' ? 'gpt' : 'other'); setPreviewId(selectedId ?? null); setOtherProvider(state.current?.provider ?? null); setCommonEffort(null); if (!resetBusy && !inFlight.current) setOpen(value => !value) }, disabled: !!locked || resetBusy, 'aria-haspopup': 'dialog', 'aria-expanded': open },
           h('span', null, triggerLabel), state.current?.provider === 'chatgpt-session' && selectedId ? h('small', { className: 'gl-picker-quota', title: quotaText(quotas[selectedId]) + ' · ' + triggerQuotaText(quotas[selectedId]) }, triggerQuotaText(quotas[selectedId])) : null, ' ▾'),
-        h('dialog', { ref: dialog, className: 'gl-picker-dialog', 'aria-label': text(t, 'pickerTitle'), onCancel: e => { e.preventDefault(); close() }, onClick: e => { if (e.target === dialog.current) close() } },
+        h('dialog', { ref: dialog, popover: 'manual', tabIndex: -1, className: 'gl-picker-dialog gl-picker-widget', 'aria-modal': false, 'aria-label': text(t, 'pickerTitle'), onCancel: e => { e.preventDefault(); close() }, onClick: e => { if (e.target === dialog.current) close() } },
           h('div', { className: 'gl-picker-shell' },
             h('header', { className: 'gl-picker-head' }, h('strong', null, text(t, 'pickerTitle')),
-              h('button', { type: 'button', className: 'gl-icon', title: text(t, 'pickerRefresh'), 'aria-label': text(t, 'pickerRefresh'), disabled: selecting, onClick: () => { void directory.load().catch(e => setError(e.message)); void refresh(); void loadQuota(accounts.filter(a => a.configured).map(a => a.id), true) } }, RefreshIcon),
-              h('button', { type: 'button', className: 'gl-icon', 'aria-label': text(t, 'pickerClose'), disabled: selecting, onClick: close }, '×')),
+              h('time', { className: 'gl-header-updated', title: text(t, 'updatedAt', { time: new Date(Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0))).toLocaleString() }) },
+                refreshingAll ? '…' : Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0)) > 0 ? new Date(Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0))).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' }) + ' · ' + clockTime(Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0))) : '—'),
+              h('button', { type: 'button', className: 'gl-icon', 'aria-label': text(t, 'pickerRefresh'), 'aria-busy': refreshingAll, 'data-spin': refreshingAll ? 'true' : undefined, disabled: selecting || resetBusy || refreshingAll, onClick: async () => {
+                if(refreshAllLock.current)return
+                refreshAllLock.current=true;setRefreshingAll(true)
+                try { const ids=accounts.filter(a=>a.configured).map(a=>a.id); await Promise.all([directory.load().catch(e=>setError(e.message)),refresh(),loadQuota(ids,true),loadResets(ids,true)]) }
+                finally {refreshAllLock.current=false;setRefreshingAll(false)}
+              } }, RefreshIcon),
+              h('button', { type: 'button', className: 'gl-icon', 'aria-label': text(t, 'pickerClose'), disabled: selecting || resetBusy, onClick: close }, '×')),
             tab === 'other' ? h('input', { className: 'gl-input gl-picker-search', value: query, placeholder: text(t, 'pickerChoose'), 'aria-label': text(t, 'pickerSearch'), onChange: e => setQuery(e.target.value) }) : null,
             h('div', { className: 'gl-compact-tabs', role: 'group', 'aria-label': text(t, 'pickerTitle') },
-              h('button', { type: 'button', 'aria-pressed': tab === 'gpt', onClick: () => { setTab('gpt'); setQuery(''); setCommonEffort(null) } }, 'ChatGPT'),
-              h('button', { type: 'button', 'aria-pressed': tab === 'other', onClick: () => { setTab('other'); setQuery(''); setCommonEffort(null) } }, text(t, 'pickerTabOther'))),
+              h('button', { type: 'button', 'aria-pressed': tab === 'gpt', disabled: resetBusy, onClick: () => { setTab('gpt'); setQuery(''); setCommonEffort(null) } }, 'ChatGPT'),
+              h('button', { type: 'button', 'aria-pressed': tab === 'other', disabled: resetBusy, onClick: () => { setTab('other'); setQuery(''); setCommonEffort(null) } }, text(t, 'pickerTabOther'))),
             busy ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'pickerBusy')) : null,
             accountError ? h('p', { className: 'gl-picker-info', role: 'alert' }, accountError) : !snapshot ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'loading')) : !accounts.length ? h('p', { className: 'gl-picker-info' }, text(t, 'pickerEmptyAccounts')) : null,
             error || state.error ? h('p', { className: 'gl-picker-info', role: 'alert' }, error || state.error) : null,
             h('div', { className: 'gl-picker-list' },
               tab === 'gpt' ? h(React.Fragment, null,
                 h(FanAccounts, { accounts, previewId: previewAccount?.id, currentId: state.current?.provider === 'chatgpt-session' ? selectedId : null,
-                  onPreview: id => { setPreviewId(id); setQuery('') }, quotaText, compactQuota, quotas, selecting, t }),
-                previewAccount ? h('div', { className: 'gl-preview-caption' }, h('span', null, previewAccount.label), h('span', { className: 'gl-active-badge' }, text(t, previewIsCurrent ? 'activeAccount' : 'pickerPreview'))) : null,
-                previewAccount?.configured ? h(RemainingQuota, { t, card: quotas[previewAccount.id], now, pending: !!quotaPending[previewAccount.id], onRefresh: () => void loadQuota([previewAccount.id], true) }) : null)
+                  onPreview: id => { setPreviewId(id); setQuery('') }, quotaText, compactQuota, quotas, selecting: selecting || resetBusy, t, orbLink, now, resets }),
+                 previewAccount?.configured ? h(ResetMenu, { key: previewAccount.id, t, accountId: previewAccount.id, accountLabel: previewAccount.label, autoOpen: true, disabled: busy || selecting, onBusyChange: setResetBusy, onConsumed: id => { void loadQuota([id], true); void loadResets([id], true) } }) : null)
                 : h('select', { className: 'gl-input gl-compact-provider', value: previewGroup?.id ?? '', 'aria-label': text(t, 'otherProvidersBlock'), onChange: e => { setOtherProvider(e.target.value); setCommonEffort(null); setQuery('') } }, otherGroups.map(g => h('option', { value: g.id, key: g.id }, g.name))),
               levels.length ? h('div', { className: 'gl-efforts', role: 'group', 'aria-label': text(t, 'pickerReasoning') },
-                h('span', null, text(t, 'pickerReasoning')),
-                levels.map(level => h('button', { className: 'gl-effort-button', type: 'button', key: level.id, disabled: busy || selecting, 'aria-pressed': displayedEffort === level.id, onClick: () => setCommonEffort(level.id) }, level.name ?? level.id))) : null,
+                levels.map((level, index) => h(ResetChoiceCard, { className: 'gl-effort-button', type: 'button', key: level.id, disabled: busy || selecting || resetBusy, 'aria-pressed': displayedEffort === level.id, onClick: () => setCommonEffort(level.id) }, h(MiniCardOrb, { seed: index + 1 }), h('span', { className: 'gl-mini-label' }, level.name ?? level.id)))) : null,
               h('div', { className: 'gl-model-grid' }, visibleModels.map(model => {
                 const active = previewIsCurrent && state.current?.model === model.id
                 const unsupportedEffort = !!model.reasoning?.efforts?.length && !!displayedEffort && !model.reasoning.efforts.some(level => level.id === displayedEffort)
-                return h('button', { type: 'button', className: 'gl-model-cell', key: model.id, 'aria-pressed': active,
-                  disabled: busy || selecting || unsupportedEffort || (tab === 'gpt' && !previewAccount?.configured),
+                return h(ResetChoiceCard, { type: 'button', className: 'gl-model-cell', key: model.id, 'aria-pressed': active,
+                  disabled: busy || selecting || resetBusy || unsupportedEffort || (tab === 'gpt' && !previewAccount?.configured),
                   title: model.name + ' · ' + (displayedEffort ?? ''), onClick: () => void choose(tab === 'gpt' ? previewAccount : null, provider, model) },
-                  h('span', null, model.name), active ? h('span', { className: 'gl-active-badge' }, text(t, 'activeModel')) : null)
+                  h(MiniCardOrb, { seed: visibleModels.indexOf(model) + 5 }), h('span', { className: 'gl-mini-label' }, model.name))
               })),
               !visibleModels.length ? h('p', { className: 'gl-note', role: 'status' }, text(t, state.status === 'loading' ? 'pickerLoad' : query ? 'pickerNoResults' : 'pickerEmptyModels')) : null,
-              h('p', { className: 'gl-note' }, text(t, 'pickerApplyHint'))))))
+              null))))
 
     }
 

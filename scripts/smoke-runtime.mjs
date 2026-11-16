@@ -47,7 +47,7 @@ const ctx = {
   llm: { registerAdapter(ids, value) { assert.deepEqual(ids, ['chatgpt-session']); adapter = value; return () => {} } },
 }
 await installMultiAccount(ctx, {})
-assert.equal(routes.size, 3)
+assert.equal(routes.size, 4)
 const models = await adapter.listModels('chatgpt-session')
 assert.equal(models.length, 7)
 const prepared = await adapter.prepareCall('chatgpt-session', 'gpt-6.1-sol')
@@ -69,6 +69,7 @@ assert.equal(refused.data.error, 'ACCOUNT_SIGNED_OUT')
 records.set(`dsh-gpt-link/account-${id}`, { kind: 'grant', payload: { type: 'oauth', access: 'synthetic', accountId: 'synthetic', expires: 1 } })
 assert.equal((await call('/api/chatgpt-accounts', { action: 'select', accountId: id, sessionId: 'synthetic-session' })).data.sessionAccountId, id)
 assert.equal((await call(`/api/chatgpt-quota?accountId=${id}`)).data.message, 'quota-token-stale')
+assert.equal((await call(`/api/chatgpt-resets?accountId=${id}`)).data.error, 'RESET_TOKEN_EXPIRED')
 assert.equal((await call('/api/chatgpt-accounts', { action: 'remove', accountId: id })).status, 200)
 assert.equal(records.size, 0)
 for (const dispose of effects.reverse()) await dispose()

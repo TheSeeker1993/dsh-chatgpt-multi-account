@@ -4,6 +4,16 @@
   disabled: true
 - id: chatgpt-multi-account
   disabled: true
+- id: chatgpt-multi-account-release
+  disabled: true
+- id: chatgpt-fan-ui
+  disabled: true
+- id: chatgpt-reset-preview
+  disabled: true
+- id: chatgpt-reset-fixed
+  disabled: true
+- id: chatgpt-compact-unified
+  disabled: true
 - insert:
-    - id: chatgpt-multi-account-release
+    - id: chatgpt-unified-project
       name: dsh-chatgpt-multi-account
