@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "ChatGPT Link",
-    "description": "用 ChatGPT 账号登录，并显示同一账号的额度。"
+    "description": "多个 ChatGPT 账号、持久化的每会话账号选择及独立额度。账号隔离需使用 chatgpt-session 提供方。"
   }
 }

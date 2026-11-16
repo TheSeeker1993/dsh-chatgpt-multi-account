@@ -1,21 +1,21 @@
 {
-  "name": "dsh-gpt-link",
-  "version": "0.2.0",
-  "description": "DeepSeek Harness plugin: sign in with ChatGPT to use GPT models through DSH's bundled pi-ai Codex route, and see that account's quota.",
-  "author": "Clukay-Fun",
+  "name": "dsh-chatgpt-multi-account",
+  "version": "0.3.0",
+  "description": "Multiple ChatGPT accounts for DeepSeek Harness: per-session routing, compact model picker and remaining quota tracking.",
+  "author": "qixxby",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Clukay-Fun/dsh-gpt-link.git"
+    "url": "git+https://github.com/qixxby/dsh-chatgpt-multi-account.git"
   },
-  "homepage": "https://github.com/Clukay-Fun/dsh-gpt-link#readme",
+  "homepage": "https://github.com/qixxby/dsh-chatgpt-multi-account#readme",
   "bugs": {
-    "url": "https://github.com/Clukay-Fun/dsh-gpt-link/issues"
+    "url": "https://github.com/qixxby/dsh-chatgpt-multi-account/issues"
   },
   "type": "module",
   "engines": {
     "node": "^22.19.0 || >=24",
-    "dsh": ">=0.2.1-rc.2 <0.3.0"
+    "dsh": ">=0.2.2-rc.2 <0.2.3"
   },
   "exports": {
     ".": "./index.js",
@@ -28,11 +28,13 @@
     "index.js",
     "client",
     "lib",
+    "multi",
     "cordis.patch.yml",
     "locale/*.json",
     "assets",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE.md"
   ],
   "dsh": {
     "bundle": {
@@ -43,7 +45,8 @@
       "immediately": true,
       "inject": [
         "@deepseek-ai/dsh-client-ui-settings",
-        "@deepseek-ai/dsh-client-locale"
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-model-selection"
       ]
     }
   },
@@ -51,9 +54,8 @@
     "typecheck": "tsc --noEmit",
     "contract": "node scripts/check-contract.mjs",
     "build": "tsc -p tsconfig.build.json",
-    "test": "tsc -p tsconfig.build.json && node scripts/check-contract.mjs && node --test test/*.test.js",
-    "read": "node lib/cli.js",
-    "prepublishOnly": "npm test"
+    "test": "node --check index.js && node --check client/index.js && node --test test/*.test.js",
+    "read": "node lib/cli.js"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
@@ -66,5 +68,11 @@
     "codex",
     "gpt",
     "openai-codex"
+  ],
+  "contributors": [
+    {
+      "name": "Clukay-Fun",
+      "url": "https://github.com/Clukay-Fun"
+    }
   ]
 }

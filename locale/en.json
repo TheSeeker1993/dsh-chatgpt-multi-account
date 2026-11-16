@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "ChatGPT Link",
-    "description": "Sign in with ChatGPT and see that account's quota."
+    "description": "Multiple ChatGPT accounts, durable per-session selection, and separate account quotas. Use the chatgpt-session provider for isolation."
   }
 }

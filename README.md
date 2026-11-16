@@ -1,145 +1,99 @@
----
-description: "DeepSeek Harness 插件：用 ChatGPT 账号登录，在 DSH 里使用 GPT 模型并查看额度。"
-kind: "package-reference"
----
+# ChatGPT Multi-account for DeepSeek Harness
 
-<p align="center">
-  <img src="assets/icon.svg" width="96" height="96" alt="ChatGPT Link">
-</p>
+Несколько аккаунтов ChatGPT с независимым выбором для каждой сессии DSH, компактным выбором модели и отображением оставшихся лимитов подписки.
 
-<h1 align="center">ChatGPT Link</h1>
+**Версия 0.3.0 · экспериментальный community-плагин.** Разработан и проверен на DSH Desktop **0.2.2-rc.2**, встроенном pi-ai **1.3.0**. Более новые версии требуют отдельной проверки. Это не официальный продукт OpenAI или DeepSeek.
 
-<p align="center">包名 <code>dsh-gpt-link</code> · 版本 <code>0.2.0</code> · DeepSeek Harness 插件</p>
+## Возможности
 
-## 概述
+- Несколько OAuth-аккаунтов ChatGPT, отдельные хранилища и обновления токенов.
+- Сохраняемый выбор аккаунта для каждой сессии, без автоматического перехода на чужой аккаунт.
+- Одинаковые кнопки аккаунтов в одну строку, модели сеткой, общий выбор уровня рассуждений.
+- Отдельные вкладки ChatGPT и остальных провайдеров.
+- Оставшийся процент лимита, полоса, время до сброса, время обновления и ручное обновление.
+- Поддержка наследования аккаунта встроенными субагентами.
+- Русский, английский и китайский интерфейс.
 
-安装后，可以用自己的 ChatGPT 账号（Plus、Pro 等订阅）登录，在 DSH 的模型选择器里使用 GPT 模型，并在设置页查看这个账号的额度用量。除 DSH Desktop 外不需要安装其他软件，不依赖 ChatGPT 桌面应用或 Codex 命令行。
+Проценты — это расход лимита подписки ChatGPT по временным окнам, **не точный счётчик токенов**. Доступные окна и модели зависят от вашей подписки и каталога установленного DSH.
 
-模型、推理协议与 OAuth 登录由 DSH 自带的 `@deepseek-ai/dsh-llm-pi-ai` 提供。本插件为它的 `openai-codex` 路由补上设置页缺少的登录入口，并读取同一份登录显示额度，因此额度一定属于正在跑推理的那个账号。插件本身不注册模型提供方，也不保存令牌：令牌由 pi-ai 写入 DSH 凭据库并负责刷新。
+## Установка
 
-安装后可以使用：
+### Через менеджер плагинов DSH
 
-- **登录**：设置 → ChatGPT Link → 用 ChatGPT 登录。系统浏览器会自动打开授权页，授权完成后回到 DSH 即可。浏览器没有自动返回时，可以把地址栏中的完整地址粘贴回设置页。
-- **退出**：设置 → ChatGPT Link → 退出登录。除删除本机登录外，还会结束 OpenAI 上的这次会话，ChatGPT「活动会话」里不会留下多余的设备。
-- **模型**：在模型选择器里选择 GPT 模型，依次为 GPT-6 Astra、GPT-6.1 Sol、GPT-6 Sol、GPT-6 Luna、GPT-5.6 Sol、GPT-5.6 Terra、GPT-5.6 Luna。所有模型统一提供 Low、Medium、High、Xhigh 四档推理等级，默认 Low。未登录时这些模型不会出现在选择器里，登录后自动出现。
-- **额度**：设置 → ChatGPT Link 显示 5 小时窗口和每周窗口的已用百分比、进度条与重置时间，用到 90% 以上会标红，额度用尽时会标出。
+Откройте **Настройки → Плагины → Добавить плагин**. Введите GitHub-спецификацию:
 
-## 截图
+```text
+github:qixxby/dsh-chatgpt-multi-account
+```
 
-| 未登录 | 已登录，显示额度 |
-|---|---|
-| ![未登录的设置页](docs/screenshots/signed-out.png) | ![已登录的设置页与额度](docs/screenshots/signed-in.png) |
-| **模型选择器** | **用 GPT 模型对话** |
-| ![模型选择器中的 GPT 模型](docs/screenshots/model-picker.png) | ![用 GPT-6 Astra 对话](docs/screenshots/chat.png) |
+Если ваша версия менеджера не поддерживает GitHub-источники, используйте установку из локальной папки ниже. Пакет пока **не опубликован в npm**, поэтому установка только по имени `dsh-chatgpt-multi-account` из npm не сработает.
 
-## 安装
-
-需要 macOS 上的 DSH Desktop，内置 `@deepseek-ai/dsh` 版本为 `>=0.2.1-rc.2 <0.3.0`。
-
-### 从插件市场安装
-
-在 DSH 的插件市场搜索 **dsh-gpt-link** 或 **ChatGPT Link**，点安装，重启 DSH Desktop。
-
-### 用命令安装
-
-请使用 DSH Desktop 自带的 `dsh` 与 `pnpm` 命令，系统 PATH 上的其他版本 pnpm 可能报 `ERR_PNPM_UNEXPECTED_STORE`：
+### Из локальной папки
 
 ```sh
-CLI_BIN=$(ls -dt "$HOME/Library/Application Support/DSH Desktop/cli/"*/bin | head -1)
-export PATH="$CLI_BIN:$PATH"
+git clone https://github.com/qixxby/dsh-chatgpt-multi-account.git
 ```
 
-从 npm 安装到 profile（以 Desktop 默认的 `web` 为例）：
+В менеджере плагинов DSH выберите **Добавить плагин** и укажите абсолютный путь к полученной папке. Собранные runtime-файлы уже включены: для установки не нужны `npm install` и TypeScript. Не удаляйте/не перемещайте папку, если менеджер создал ссылку на неё.
+
+**Перед включением отключите другие версии ChatGPT Link:** `dsh-gpt-link` и локальный прототип `@local/dsh-gpt-multi-account`, если они установлены. Они используют одинаковые маршруты API и провайдер `chatgpt-session`; одновременно включать их нельзя. Удалять старые авторизации не требуется.
+
+Этот пакет самостоятельный: upstream `dsh-gpt-link` устанавливать не нужно. Плагин не переписывает конфигурацию остальных LLM-провайдеров. После установки обновите страницу DSH; при требовании менеджера перезапустите приложение.
+
+## Начало работы
+
+1. **Настройки → ChatGPT Link → Добавить аккаунт**. Укажите понятное название.
+2. Нажмите **Войти через ChatGPT** и самостоятельно завершите OAuth-вход в браузере. Проверьте, что вошли именно в нужный аккаунт.
+3. В сессии нажмите выбор модели. На вкладке **ChatGPT** выберите кнопку аккаунта.
+4. Просмотрите его лимиты, выберите уровень рассуждений и нажмите модель. Только нажатие модели применяет аккаунт и модель к текущей сессии.
+5. Для каждой другой сессии можно выбрать другой аккаунт.
+
+Название карточки — введённая пользователем метка, а не подтверждённый email аккаунта OAuth. Смена просматриваемой карточки не меняет работающую сессию. Текущий аккаунт и модель отмечены отдельно.
+
+### Исходный/общий аккаунт
+
+Если ранее был выполнен вход через встроенный OpenAI Codex, плагин показывает `ChatGPT · текущий аккаунт` с ID `legacy`. Он использует прежнюю запись авторизации без копирования токенов. Его нельзя удалить через этот интерфейс. Старый провайдер **openai-codex**, если включён вашей конфигурацией, использует этот общий аккаунт и не учитывает выбор аккаунта сессии.
+
+Для изоляции используйте **ChatGPT (session account)**, ID `chatgpt-session`.
+
+## Безопасность и ограничения
+
+- Токены хранятся в DSH Credentials на вашем компьютере; не в конфиге, GitHub или данных UI. Защита на диске определяется credential backend вашей установки DSH.
+- Метки аккаунтов и привязки сессий сохраняются в отдельном DSH Storage domain `chatgpt_accounts`.
+- Нет автоматической балансировки, обхода лимитов или смены аккаунта при ошибке. Отсутствующий выбор/удалённая авторизация вызывают ошибку.
+- Нельзя менять аккаунт работающей сессии, удалять занятый аккаунт или повторно входить в него во время использования.
+- Встроенные субагенты наследуют выбранный аккаунт родителя при первом запросе; обычные новые сессии и ветки требуют отдельного выбора.
+- Системные вызовы без session ID не могут использовать session-account route. При необходимости оставьте системную модель на другом провайдере.
+- При смене аккаунта текст истории сессии останется и будет отправляться новому аккаунту. Account-bound replay IDs не переиспользуются между аккаунтами.
+- Удаление аккаунта удаляет **локальные** credentials, но не гарантирует отзыв сеанса у OpenAI. При необходимости завершите сеанс в ChatGPT → Безопасность → Активные сеансы.
+- Квота может быть устаревшей или недоступной. Просроченный OAuth-токен обновляется нативным pi-ai при запросе модели; карточка квоты сама refresh не выполняет.
+- OAuth-вход использует нативную реализацию pi-ai. Входите по одному аккаунту за раз; при конфликте callback-порта завершите другой OAuth-вход.
+- На узком экране/при большом количестве аккаунтов кнопки прокручиваются горизонтально; вертикальная прокрутка остаётся страховкой для небольшого окна.
+- Совместимость модели/подписки, доступность ChatGPT и соответствие условиям OpenAI — ответственность пользователя. Плагин не обещает доступ к моделям вне вашей подписки.
+
+## Обновление и откат
+
+Обновляйте через менеджер плагинов или получите новые исходники и следуйте подсказке менеджера о перезапуске. Перед обновлением завершите активные запросы. Для отката отключите этот пакет и включите предыдущий. Секреты/привязки автоматически не удаляются. Не включайте обе версии одновременно.
+
+## Разработка и тесты
+
+Node.js 24+:
 
 ```sh
-dsh plugin --profile web add dsh-gpt-link
+npm test
+npm pack --dry-run
 ```
 
-重启 DSH Desktop，在设置中打开 **ChatGPT Link** 完成登录。
+`npm test` проверяет JS-синтаксис и запускает 67 тестов (авторизация, квоты, параллельные запросы, leases, наследование, replay isolation). Они используют синтетические credentials и не входят в ваши аккаунты.
 
-### 从源码安装
+`src/` и `lib/` сохраняют upstream-модули. Новые серверные модули: `multi/`; UI: `client/index.js`. Для пересборки upstream TypeScript при его изменении установите devDependencies и выполните `npm run build`. CI не публикует npm-пакет автоматически.
 
-需要修改插件时使用：
+Проверка двух реальных аккаунтов, focus/scroll поведения и совместимости конкретной версии DSH требует ручного интеграционного теста. Автотесты не заменяют такую проверку.
 
-```sh
-git clone https://github.com/Clukay-Fun/dsh-gpt-link.git
-cd dsh-gpt-link
-pnpm install
-pnpm run build
-dsh plugin --profile web add "$(pwd)"
-```
+## English quick start
 
-路径需为绝对路径。重启 DSH Desktop 后生效。
+Install using DSH Plugin Manager from `github:qixxby/dsh-chatgpt-multi-account`, or clone this repository and add its absolute local directory. Disable other ChatGPT Link implementations first. Add and explicitly sign into accounts under Settings → ChatGPT Link. In a session, open the model picker, preview an account, choose reasoning effort and click a model to apply both. The `chatgpt-session` provider is account-isolated; legacy `openai-codex` is not. Quotas are subscription limits, not token counts. Tested target: DSH 0.2.2-rc.2 / pi-ai 1.3.0.
 
-### 确认配置已生效
+## License and attribution
 
-```sh
-dsh --profile web --dump-config | grep -A 4 "openai-codex:"
-```
-
-输出应类似：
-
-```yaml
-      openai-codex:
-        reasoning: low
-        models:
-          - id: gpt-6-astra
-            reasoningEfforts:
-```
-
-### 模型没有出现时
-
-插件会为 `llm-pi-ai` 写入 `providers.openai-codex` 配置。如果 profile 自己的 `~/.dsh/profiles/web/cordis.patch.yml` 中已有 `llm-pi-ai` 的 `providers` 设置（例如在「设置 → 模型」里改过提供方），它会整体覆盖插件的配置。删除该文件中的 `llm-pi-ai` 段，重启 DSH Desktop，再按上一节确认。
-
-### 更新
-
-从插件市场安装的，在市场里点更新。从 npm 安装的：
-
-```sh
-dsh plugin --profile web update dsh-gpt-link
-```
-
-从源码安装的，拉取并重新构建即可，无需重新添加：
-
-```sh
-git pull
-pnpm install
-pnpm run build
-```
-
-然后重启 DSH Desktop。
-
-### OpenAI 推出新模型时
-
-模型列表写在插件的 `cordis.patch.yml` 里，模型的接口地址和上下文长度则来自 DSH Desktop 自带的 pi-ai 模型目录。新模型要出现在选择器里，两边都要更新：先等 DSH Desktop 更新到目录里有这个模型的版本，再等插件发布加入它的新版本，然后在插件市场点更新。
-
-### 卸载
-
-```sh
-dsh plugin --profile web remove dsh-gpt-link
-```
-
-卸载插件不会删除 pi-ai 保存的登录。如需退出登录，请在卸载前到设置 → ChatGPT Link 点击「退出登录」。
-
-## 目录结构
-
-| 路径 | 内容 |
-|---|---|
-| `index.js` | 后端入口：登录与额度接口 |
-| `client/index.js` | 设置页前端 |
-| `src/` | 后端源码（TypeScript），构建到 `lib/` |
-| `cordis.patch.yml` | `openai-codex` 路由、模型列表与推理等级 |
-| `assets/icon.svg` | 插件图标 |
-| `docs/screenshots/` | README 中的截图，不随 npm 包发布 |
-| `locale/` | 插件名称与简介的中英文 |
-| `scripts/check-contract.mjs` | 核对已安装的 pi-ai 是否仍符合插件依赖的约定 |
-| `test/` | 测试，`pnpm test` 运行 |
-| `.github/workflows/publish.yml` | 推送版本标签时自动发布到 npm |
-
-## 发布新版本
-
-1. 修改 `package.json` 的版本号和 README 顶部的版本，运行 `pnpm run build`，把 `lib/` 一并提交。
-2. 合并到 `main` 后打标签并推送，例如 `git tag v0.2.1 && git push origin v0.2.1`。
-3. GitHub Actions 会核对标签与版本号一致、重新构建并运行测试，然后通过 npm Trusted Publishing 发布，不需要令牌或验证码。
-
-加入新模型时，在 `cordis.patch.yml` 的 `models` 里按选择器顺序加一行，同步更新上文「模型」一段，再在装有新版 DSH Desktop 的机器上运行 `pnpm test`：`scripts/check-contract.mjs` 会核对本机的模型目录里确实有这个 id。
+MIT. Based on [Clukay-Fun/dsh-gpt-link](https://github.com/Clukay-Fun/dsh-gpt-link), upstream commit `c2110c8d818445c398b14f0f1d5a5aa30e992aed`, version 0.2.0. Original copyright/license and icon attribution are retained. Multi-account implementation and UI modifications maintained by [qixxby](https://github.com/qixxby). See [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md).

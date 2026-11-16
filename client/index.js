@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: 'dsh-gpt-link',
+  id: 'dsh-chatgpt-multi-account',
   factory(require) {
     const React = require('react')
     const h = React.createElement
@@ -132,8 +132,77 @@ window.__ModuleLoader__.load({
       },
     }
 
+    Object.assign(copy.en, {
+      accounts: 'ChatGPT accounts', addAccount: 'Add account', accountLabel: 'Account label', signInAgain: 'Sign in again',
+      rename: 'Rename', remove: 'Remove', confirmRemove: 'Remove this account’s local authorization? Bound sessions will stop until you select another account. This does not revoke the session at OpenAI.',
+      confirm: 'Confirm removal', emptyAccounts: 'No accounts yet. Add an account, then sign in explicitly.',
+      sessionAccount: 'ChatGPT account for this session', chooseAccount: 'Choose an account',
+      unconfigured: 'Not signed in', loading: 'Loading…', busySession: 'Account switching is unavailable while this session is busy.',
+      isolatedHint: 'For account isolation, select “ChatGPT (session account)” (chatgpt-session) in the model picker. This control never changes your model automatically.',
+      requestFailed: 'Request failed. Retry or refresh.', retry: 'Retry', subagentHint: 'Account selection is unavailable for subagents.',
+    })
+    Object.assign(copy.zh, {
+      accounts: 'ChatGPT 账号', addAccount: '添加账号', accountLabel: '账号名称', rename: '重命名', signInAgain: '重新登录',
+      remove: '移除', confirmRemove: '移除此账号的本地授权？绑定的会话将停止，直到重新选择账号。此操作不会撤销 OpenAI 端的会话。', confirm: '确认移除',
+      emptyAccounts: '暂无账号。请先添加账号，再手动登录。', sessionAccount: '此会话的 ChatGPT 账号',
+      chooseAccount: '选择账号', unconfigured: '未登录', loading: '正在加载…',
+      busySession: '会话忙碌时不能切换账号。',
+      isolatedHint: '如需账号隔离，请在模型选择器中选择 “ChatGPT (session account)”（chatgpt-session）。此控件不会自动更改模型。',
+      requestFailed: '请求失败，请重试或刷新。', retry: '重试', subagentHint: '子代理不能选择账号。',
+    })
+    copy.ru = { ...copy.en,
+      nav: 'ChatGPT Link', intro: 'Несколько аккаунтов ChatGPT с отдельным выбором для каждой сессии.',
+      account: 'Аккаунт ChatGPT', signedIn: 'Вход выполнен', signedOut: 'Вход не выполнен',
+      signingIn: 'Выполняется вход…', loginCancelled: 'Вход отменён', loginFailed: 'Не удалось войти',
+      signedOutHint: 'Войдите в этот аккаунт явным действием.', signedInHint: 'Аккаунт готов к выбору в сессии.',
+      signIn: 'Войти через ChatGPT', signInAgain: 'Войти повторно', cancel: 'Отмена', submit: 'Отправить', chooseMethod: 'Выберите способ входа',
+      method_browser: 'Через браузер (рекомендуется)', method_device_code: 'Код устройства',
+      browserOpened: 'Завершите вход на открытой странице. Состояние обновится автоматически.',
+      browserFallback: 'Браузер не открылся?', openManually: 'Открыть страницу входа',
+      deviceCode: 'Введите этот код на странице подтверждения:', openVerification: 'Открыть страницу подтверждения',
+      pasteCallback: 'Если возврат не произошёл, вставьте полный адрес из адресной строки после авторизации.',
+      quota: 'Квота', refresh: 'Обновить', refreshing: 'Обновление', updatedJustNow: 'Только что',
+      updatedAt: 'Обновлено: {time}', staleAt: 'Устаревшие данные: {time}', limitReached: 'Исчерпано',
+      used: 'Использовано {n}%', resetsIn: 'Сброс через {span}', noReset: 'Время сброса неизвестно',
+      day: '{n} дн.', hour: '{n} ч', minute: '{n} мин', soon: 'скоро',
+      windowFiveHour: '5 часов', windowWeekly: 'Неделя', windowHours: '{n} ч', windowDays: '{n} дн.', windowMinutes: '{n} мин',
+      noWindows: 'Нет данных об интервалах квоты.',
+      'quota-signed-out': 'Войдите для просмотра квоты.', 'quota-unavailable': 'Не удалось получить квоту.',
+      'quota-token-stale': 'Вход устарел. Войдите снова.', 'quota-token-rejected': 'OpenAI отклонил вход. Войдите снова.',
+      'quota-throttled': 'Слишком много запросов. Повторите позже.', 'quota-blocked': 'Запрос заблокирован защитой ChatGPT.',
+      'quota-stopped': 'Плагин остановлен.', accounts: 'Аккаунты ChatGPT', addAccount: 'Добавить аккаунт',
+      accountLabel: 'Название аккаунта', rename: 'Переименовать', remove: 'Удалить',
+      confirmRemove: 'Удалить локальную авторизацию аккаунта? Привязанные сессии остановятся до выбора другого аккаунта. Сеанс на стороне OpenAI не отзывается.', confirm: 'Подтвердить удаление',
+      emptyAccounts: 'Аккаунтов пока нет. Добавьте аккаунт, затем явно выполните вход.',
+      sessionAccount: 'Аккаунт ChatGPT этой сессии', chooseAccount: 'Выберите аккаунт',
+      unconfigured: 'Вход не выполнен', loading: 'Загрузка…', busySession: 'Нельзя менять аккаунт, пока сессия занята.',
+      isolatedHint: 'Для изоляции выберите в моделях «ChatGPT (session account)» (chatgpt-session). Этот переключатель не меняет модель автоматически.',
+      requestFailed: 'Запрос не выполнен. Повторите или обновите страницу.', retry: 'Повторить',
+      subagentHint: 'Выбор аккаунта недоступен для субагентов.',
+    }
+
+    Object.assign(copy.ru, { sessionAccount: 'ChatGPT', manageAccount: 'Управление аккаунтом', setupHint: '1. Добавьте аккаунты и войдите в них. 2. Выберите аккаунт в чате. 3. Выберите модель из ChatGPT (session account).', routeHint: 'Работает с моделями ChatGPT (session account). Старый OpenAI Codex использует общий аккаунт.', accountDetails: 'Название и удаление', inheritedAccount: 'Аккаунт родителя' })
+    Object.assign(copy.en, { sessionAccount: 'ChatGPT', manageAccount: 'Manage account', setupHint: '1. Add accounts and sign in. 2. Choose an account in chat. 3. Choose a model under ChatGPT (session account).', routeHint: 'Uses ChatGPT (session account) models. Legacy OpenAI Codex uses the shared account.', accountDetails: 'Name and removal', inheritedAccount: 'Parent account' })
+    Object.assign(copy.zh, { sessionAccount: 'ChatGPT', manageAccount: '管理账号', setupHint: '1. 添加账号并登录。2. 在聊天中选择账号。3. 选择 ChatGPT (session account) 模型。', routeHint: '适用于 ChatGPT (session account) 模型，旧 Codex 路由使用共享账号。', accountDetails: '名称与移除', inheritedAccount: '父会话账号' })
+
     const css = `
 .gl{width:100%;max-width:760px;color:var(--dsw-alias-label-primary);display:flex;flex-direction:column;gap:14px;font-size:14px;line-height:22px}
+.gl-account{border:1px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l2));border-radius:14px;overflow:hidden;background:var(--dsw-alias-settings-card-fill)}
+.gl-account>.gl-card{border:0;border-radius:0;background:transparent}
+.gl-account>.gl-card+.gl-card{border-top:1px solid var(--dsw-alias-border-l2)}
+.gl-account-heading{padding:14px 16px 0;font-weight:600;overflow-wrap:anywhere}
+.gl-account-manage{border-top:1px solid var(--dsw-alias-border-l2);padding:10px 14px}
+.gl-account-manage>summary{cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12px}
+.gl-account-manage .gl-row{padding:12px 0 0;flex-wrap:wrap;gap:8px}
+.gl-account-manage .gl-input{flex:1 1 180px;width:100%}
+.gl-account .gl-desc{display:none}
+.gl-account .gl-windows{gap:12px}
+.gl-dock{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:300px;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:20px}
+.gl-dock select{width:170px;max-width:100%;min-width:0;height:28px;border:1px solid var(--dsw-alias-border-l3);border-radius:8px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;padding:0 6px;text-overflow:ellipsis}
+.gl-dock select:disabled{opacity:.6}
+.gl-dock-help{cursor:help;flex:none;font-size:12px}
+.gl-dock-error{font-size:11px;color:var(--dsw-alias-state-error-primary)}
+@media(max-width:600px){.gl-form{flex-wrap:wrap}.gl-form>.gl-input{flex-basis:100%}.gl-dock{max-width:230px}.gl-dock select{width:145px}}
 .gl-heading{margin:0;font-size:18px;font-weight:600;line-height:26px}
 .gl-intro{margin:-6px 0 0;color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:20px}
 .gl-card{border:.5px solid var(--dsw-alias-settings-card-stroke);border-radius:var(--dsw-radius-xl);background:var(--dsw-alias-settings-card-fill);display:flex;flex-direction:column;min-width:0;overflow:hidden}
@@ -255,26 +324,77 @@ window.__ModuleLoader__.load({
       return plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : null
     }
 
-    async function getAuth() {
-      const response = await fetch('/api/codex-auth', {
-        cache: 'no-store',
-        credentials: 'same-origin',
-        headers: { accept: 'application/json' },
+    // Cookie-authenticated, document-relative URLs preserve a mounted Host path.
+    async function request(path, body, signal) {
+      const response = await fetch(path, {
+        method: body === undefined ? 'GET' : 'POST', cache: 'no-store', credentials: 'same-origin', signal,
+        headers: { accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       })
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      return response.json()
+      const result = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(typeof result?.error === 'string' ? result.error : `HTTP ${response.status}`)
+      if (result?.ok === false || result?.error) throw new Error(typeof result.error === 'string' ? result.error : result.error?.message || 'Request failed')
+      return result
     }
-
-    async function postAuth(body) {
-      const response = await fetch('/api/codex-auth', {
-        method: 'POST',
-        cache: 'no-store',
-        credentials: 'same-origin',
-        headers: { accept: 'application/json', 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (!response.ok && response.status !== 400 && response.status !== 500) throw new Error(`HTTP ${response.status}`)
-      return response.json()
+    const accountEvents = new EventTarget()
+    function accountsChanged() { accountEvents.dispatchEvent(new Event('changed')) }
+    function getAuth(accountId, signal) {
+      return request(`api/chatgpt-auth?accountId=${encodeURIComponent(accountId)}`, undefined, signal)
+    }
+    function postAuth(accountId, body) {
+      return request('api/chatgpt-auth', { ...body, accountId })
+    }
+    function useAccounts(sessionId) {
+      const [snapshot, setSnapshot] = React.useState(null)
+      const [error, setError] = React.useState('')
+      const [pending, setPending] = React.useState(false)
+      const generation = React.useRef(0)
+      const mounted = React.useRef(false)
+      const scopeKey = React.useRef(sessionId)
+      scopeKey.current = sessionId
+      const mutationActive = React.useRef(false)
+      const refresh = React.useCallback(async () => {
+        const ticket = ++generation.current
+        try {
+          const next = await request(`api/chatgpt-accounts${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''}`)
+          if (!Array.isArray(next?.accounts)) throw new Error('Invalid accounts response')
+          if (mounted.current && ticket === generation.current) { setSnapshot(next); setError('') }
+        } catch (e) {
+          if (mounted.current && ticket === generation.current) setError(e instanceof Error ? e.message : 'Request failed')
+        }
+      }, [sessionId])
+      React.useEffect(() => {
+        mounted.current = true
+        setSnapshot(null); setPending(false); mutationActive.current = false
+        void refresh()
+        const onChange = () => { void refresh() }
+        accountEvents.addEventListener('changed', onChange)
+        window.addEventListener('focus', onChange)
+        const timer = setInterval(onChange, 5000)
+        return () => {
+          mounted.current = false; generation.current++
+          clearInterval(timer); accountEvents.removeEventListener('changed', onChange); window.removeEventListener('focus', onChange)
+        }
+      }, [refresh])
+      const mutate = async (body) => {
+        if (pending || mutationActive.current) return false
+        const targetScope = sessionId
+        mutationActive.current = true
+        setPending(true); setError(''); ++generation.current
+        try {
+          const next = await request('api/chatgpt-accounts', body)
+          if (!Array.isArray(next?.accounts)) throw new Error('Invalid accounts response')
+          if (mounted.current && scopeKey.current === targetScope) { ++generation.current; setSnapshot(next) }
+          accountsChanged()
+          return true
+        } catch (e) {
+          if (mounted.current && scopeKey.current === targetScope) setError(e instanceof Error ? e.message : 'Request failed')
+          return false
+        } finally {
+          if (scopeKey.current === targetScope) { mutationActive.current = false; if (mounted.current) setPending(false) }
+        }
+      }
+      return { snapshot, error, pending, refresh, mutate }
     }
 
     /** What the flow is asking, in this page's words where the question is one we recognize. */
@@ -350,19 +470,20 @@ window.__ModuleLoader__.load({
      * The flow belongs to pi-ai; this only starts it and renders its notices and questions.
      * An attempt is not resumable, so a reload during sign-in means starting over.
      */
-    function AccountCard({ t, auth, setAuth, plan, onSignedOut }) {
+    function AccountCard({ t, accountId, auth, setAuth, plan }) {
       const [busy, setBusy] = React.useState(false)
 
       const send = React.useCallback(async (body) => {
         setBusy(true)
         try {
-          setAuth(await postAuth(body))
+          setAuth(await postAuth(accountId, body))
+          accountsChanged()
         } catch (caught) {
           setAuth({ status: 'failed', label: null, methods: [], notice: null, prompt: null, code: caught instanceof Error ? caught.message : 'login-failed', revoked: null })
         } finally {
           setBusy(false)
         }
-      }, [setAuth])
+      }, [accountId, setAuth])
 
       const status = auth?.status ?? 'signed-out'
       const pending = status === 'pending'
@@ -399,15 +520,7 @@ window.__ModuleLoader__.load({
             pending
               ? h('button', { type: 'button', className: 'gl-btn', disabled: busy, onClick: () => void send({ action: 'cancel' }) }, text(t, 'cancel'))
               : signedIn
-                ? h('button', {
-                  type: 'button',
-                  className: 'gl-btn',
-                  disabled: busy,
-                  onClick: async () => {
-                    await send({ action: 'logout' })
-                    onSignedOut()
-                  },
-                }, text(t, 'signOut'))
+                ? h('button', { type: 'button', className: 'gl-btn', disabled: busy, onClick: () => void send({ action: 'login' }) }, text(t, 'signInAgain'))
                 : h('button', {
                   type: 'button',
                   className: 'gl-btn',
@@ -426,37 +539,36 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function WindowRow({ t, window, now }) {
-      const percent = Math.max(0, Math.min(100, window.usedPercent))
-      const danger = percent >= 90
-      const when = window.resetsAt == null
-        ? null
-        : window.resetsAt - now < 86_400_000
-          ? clockTime(window.resetsAt)
-          : shortTime(window.resetsAt)
-      const reset = window.resetsAt == null
-        ? text(t, 'noReset')
-        : `${text(t, 'resetsIn', { span: span(t, window.resetsAt - now) })} · ${when}`
+    Object.assign(copy.ru, { remaining: 'Остаётся {n}%', resetCountdown: 'До сброса: {span}', gptAccountsBlock: 'Аккаунты ChatGPT', otherProvidersBlock: 'Другие провайдеры', quotaStale: 'Данные устарели', quotaWeekly: 'Недельный лимит', quotaFiveHour: 'Лимит на 5 часов' })
+    Object.assign(copy.en, { remaining: '{n}% remaining', resetCountdown: 'Resets in: {span}', gptAccountsBlock: 'ChatGPT accounts', otherProvidersBlock: 'Other providers', quotaStale: 'Outdated data', quotaWeekly: 'Weekly limit', quotaFiveHour: '5-hour limit' })
+    Object.assign(copy.zh, { remaining: '剩余 {n}%', resetCountdown: '重置倒计时：{span}', gptAccountsBlock: 'ChatGPT 账号', otherProvidersBlock: '其他提供方', quotaStale: '数据已过期', quotaWeekly: '每周限额', quotaFiveHour: '5 小时限额' })
+    function WindowRow({ t, window, now, card, pending, onRefresh }) {
+      const percent = Number.isFinite(window.usedPercent) ? Math.max(0, Math.min(100, 100 - window.usedPercent)) : null
+      const danger = percent !== null && percent <= 10
       const label = windowLabel(t, window)
-      return h('div', { className: 'gl-window' },
-        h('div', { className: 'gl-window-top' },
-          h('span', { className: 'gl-window-name' }, label),
-          h('span', { className: 'gl-window-used', 'data-tone': danger ? 'error' : undefined }, text(t, 'used', { n: String(Math.round(window.usedPercent)) })),
-        ),
-        h('div', {
-          className: 'gl-track',
-          role: 'progressbar',
-          'aria-valuemin': 0,
-          'aria-valuemax': 100,
-          'aria-valuenow': Math.round(percent),
-          'aria-label': label,
-        }, h('div', { className: 'gl-fill', 'data-tone': danger ? 'error' : undefined, style: { width: `${percent}%` } })),
-        h('div', { className: 'gl-window-reset' }, reset),
-      )
+      const title = label === text(t, 'windowWeekly') ? text(t, 'quotaWeekly') : label === text(t, 'windowFiveHour') ? text(t, 'quotaFiveHour') : label
+      return h('div', { className: 'gl-limit' },
+        h('div', { className: 'gl-limit-title' },
+          h('span', null, title),
+          onRefresh ? h('span', { className: 'gl-limit-update' },
+            h('time', { dateTime: card?.fetchedAt ? new Date(card.fetchedAt).toISOString() : undefined, title: card?.fetchedAt ? text(t, 'updatedAt', { time: new Date(card.fetchedAt).toLocaleString() }) + (card.freshness === 'stale' ? ' · ' + text(t, 'quotaStale') : '') : text(t, 'pickerUnknown') },
+              card?.fetchedAt ? new Date(card.fetchedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + (card.freshness === 'stale' ? ' ≈' : '') : '—'),
+            h('button', { type: 'button', className: 'gl-icon', disabled: pending, title: text(t, pending ? 'refreshing' : 'refresh'), 'aria-label': title + ' · ' + text(t, pending ? 'refreshing' : 'refresh'), 'aria-busy': !!pending, 'data-spin': pending ? 'true' : undefined, onClick: onRefresh }, RefreshIcon)) : null),
+        h('div', { className: 'gl-limit-meta' },
+          h('span', { title: window.resetsAt == null ? undefined : shortTime(window.resetsAt) }, window.resetsAt == null ? text(t, 'noReset') : text(t, 'resetCountdown', { span: span(t, window.resetsAt - now) })),
+          h('span', { 'data-tone': danger ? 'error' : undefined }, percent === null ? text(t, 'pickerUnknown') : text(t, 'remaining', { n: String(Math.round(percent)) }))),
+        percent !== null ? h('div', { className: 'gl-limit-track', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(percent), 'aria-label': title + ' · ' + text(t, 'remaining', { n: String(Math.round(percent)) }) },
+          h('div', { className: 'gl-limit-fill', 'data-tone': danger ? 'error' : undefined, style: { width: percent + '%' } })) : null)
+    }
+    function RemainingQuota({ t, card, now, pending, onRefresh }) {
+      return h('div', { className: 'gl-limit-stack' },
+        card?.windows?.length ? card.windows.map(window => h(WindowRow, { key: window.id, t, window, now, card, pending, onRefresh })) :
+          h('div', { className: 'gl-limit-meta' }, h('span', null, text(t, 'pickerUnknown')), h('button', { type: 'button', className: 'gl-icon', disabled: pending, 'aria-label': text(t, 'refresh'), 'data-spin': pending ? 'true' : undefined, onClick: onRefresh }, RefreshIcon)))
     }
 
     function QuotaCard({ t, card, pending, onRefresh }) {
-      const now = Date.now()
+      const [now, setNow] = React.useState(Date.now())
+      React.useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer) }, [])
       const meta = pending
         ? text(t, 'refreshing')
         : !card || card.fetchedAt == null
@@ -495,85 +607,337 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function GptLinkSection({ t }) {
+    function AccountPanel({ t, account, pending, mutate }) {
       const [auth, setAuth] = React.useState(null)
       const [card, setCard] = React.useState(null)
-      const [pending, setPending] = React.useState(false)
-
-      const loadQuota = React.useCallback(async (refresh) => {
-        setPending(true)
-        try {
-          const response = await fetch('/api/codex-quota', {
-            method: refresh ? 'POST' : 'GET',
-            cache: 'no-store',
-            credentials: 'same-origin',
-            headers: { accept: 'application/json' },
-          })
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          const body = await response.json()
-          if (!body || (body.status !== 'logged-in' && body.status !== 'query-failed' && body.status !== 'logged-out')) {
-            throw new Error('bad quota payload')
-          }
-          setCard(body)
-        } catch {
-          setCard((current) => ({
-            status: 'query-failed',
-            freshness: current?.fetchedAt ? 'stale' : 'empty',
-            fetchedAt: current?.fetchedAt ?? null,
-            message: 'quota-unavailable',
-            planType: current?.planType ?? null,
-            limitReached: false,
-            windows: current?.windows ?? [],
-          }))
-        } finally {
-          setPending(false)
+      const [quotaPending, setQuotaPending] = React.useState(false)
+      const [error, setError] = React.useState('')
+      const [label, setLabel] = React.useState(account.label)
+      const [confirming, setConfirming] = React.useState(false)
+      React.useEffect(() => { setLabel(account.label) }, [account.label])
+      React.useEffect(() => {
+        let live = true
+        let inFlight = false
+        const controller = new AbortController()
+        const load = async () => {
+          if (inFlight) return
+          inFlight = true
+          try {
+            const next = await getAuth(account.id, controller.signal)
+            if (live) { setAuth(next); setError('') }
+          } catch (e) { if (live) setError(e instanceof Error ? e.message : 'Request failed') }
+          finally { inFlight = false }
         }
-      }, [])
-
-      const loadAuth = React.useCallback(async () => {
-        setAuth(await getAuth())
-      }, [])
-
-      React.useEffect(() => {
-        void loadAuth().catch(() => {})
-      }, [loadAuth])
-
-      // Signing in or out here shows or hides the picker's GPT models at once.
-      React.useEffect(() => {
-        if (auth?.status) modelGate.report(auth.status)
-      }, [auth?.status])
-
-      // An attempt waits on a browser, so the only way this transport learns it finished is
-      // to ask. Polling stops as soon as the attempt settles.
-      React.useEffect(() => {
-        if (auth?.status !== 'pending') return undefined
-        const timer = setInterval(() => {
-          void loadAuth().catch(() => {})
-        }, 1000)
-        return () => clearInterval(timer)
-      }, [auth?.status, loadAuth])
-
-      // The quota card exists only for a signed-in account, so a signed-out page shows its
-      // state once instead of the same "not signed in" in two places.
+        void load()
+        const timer = auth?.status === 'pending' ? setInterval(() => { void load() }, 1500) : undefined
+        return () => { live = false; controller.abort(); if (timer !== undefined) clearInterval(timer) }
+      }, [account.id, auth?.status])
+      const loadQuota = React.useCallback(async (refresh) => {
+        setQuotaPending(true)
+        try {
+          const next = await request(`api/chatgpt-quota?accountId=${encodeURIComponent(account.id)}`, refresh ? {} : undefined)
+          setCard(next)
+        } catch {
+          setCard(current => ({ status: 'query-failed', freshness: current ? 'stale' : 'empty',
+            fetchedAt: current?.fetchedAt ?? null, message: 'quota-unavailable', planType: current?.planType ?? null,
+            windows: current?.windows ?? [] }))
+        } finally { setQuotaPending(false) }
+      }, [account.id])
       const signedIn = auth?.status === 'signed-in'
-      React.useEffect(() => {
-        if (signedIn) void loadQuota(false)
-        else setCard(null)
-      }, [signedIn, loadQuota])
+      React.useEffect(() => { if (signedIn) void loadQuota(false); else setCard(null) }, [signedIn, loadQuota])
+      return h('article', { className: 'gl-account', 'aria-label': account.label },
+        h('div', { className: 'gl-account-heading' }, account.label),
+        error ? h('p', { className: 'gl-note', role: 'alert' }, error) : null,
+        auth ? h(AccountCard, { t, accountId: account.id, auth, setAuth, plan: planName(card?.planType) }) : h('p', { className: 'gl-note' }, text(t, 'loading')),
+        signedIn ? h(QuotaCard, { t, card, pending: quotaPending, onRefresh: () => void loadQuota(true) }) : null,
+        h('details', { className: 'gl-account-manage' },
+          h('summary', null, text(t, 'accountDetails')),
+          h('form', { className: 'gl-row', onSubmit: event => { event.preventDefault(); if (label.trim()) void mutate({ action: 'rename', accountId: account.id, label: label.trim() }) } },
+            h('input', { className: 'gl-input', value: label, maxLength: 80, 'aria-label': text(t, 'accountLabel'), onChange: event => setLabel(event.target.value) }),
+            h('button', { className: 'gl-btn', type: 'submit', disabled: pending || !label.trim() || label.trim() === account.label }, text(t, 'rename')),
+            account.id !== 'legacy' ? h('button', { className: 'gl-btn', type: 'button', disabled: pending, onClick: () => setConfirming(true) }, text(t, 'remove')) : null),
+          confirming ? h('div', { className: 'gl-sub' },
+            h('p', { className: 'gl-note' }, text(t, 'confirmRemove')),
+            h('div', { className: 'gl-choices' },
+              h('button', { className: 'gl-btn', type: 'button', disabled: pending, onClick: () => void mutate({ action: 'remove', accountId: account.id }) }, text(t, 'confirm')),
+              h('button', { className: 'gl-btn', type: 'button', disabled: pending, onClick: () => setConfirming(false) }, text(t, 'cancel')))) : null))
+    }
 
+    function GptLinkSection({ t }) {
+      const { snapshot, error, pending, refresh, mutate } = useAccounts()
+      const [label, setLabel] = React.useState('')
       return h('div', { className: 'gl' },
+        h('style', null, css + pickerCss), h('h2', { className: 'gl-heading' }, text(t, 'accounts')),
+        h('p', { className: 'gl-intro' }, text(t, 'setupHint')),
+        h('form', { className: 'gl-form', onSubmit: async event => {
+          event.preventDefault()
+          if (label.trim() && await mutate({ action: 'create', label: label.trim() })) setLabel('')
+        } },
+          h('input', { className: 'gl-input', value: label, maxLength: 80, 'aria-label': text(t, 'accountLabel'), placeholder: text(t, 'accountLabel'), onChange: event => setLabel(event.target.value) }),
+          h('button', { type: 'submit', className: 'gl-btn', disabled: pending || !label.trim() }, text(t, 'addAccount'))),
+        error ? h('div', { role: 'alert' }, `${text(t, 'requestFailed')} ${error} `,
+          h('button', { className: 'gl-btn', type: 'button', onClick: () => void refresh() }, text(t, 'retry'))) : null,
+        !snapshot && !error ? h('p', null, text(t, 'loading')) : null,
+        snapshot?.accounts.length === 0 ? h('p', { className: 'gl-note' }, text(t, 'emptyAccounts')) : null,
+        snapshot?.accounts.map(account => h(AccountPanel, { key: account.id, t, account, pending, mutate })))
+    }
+
+    function SessionAccountSelector({ t, sessionId, useSession }) {
+      const { snapshot, error, pending, refresh, mutate } = useAccounts(sessionId)
+      const busy = useSession(s => s.running || s.awaitingFirstTurn || s.pendingSubmissions.length > 0)
+      const removed = useSession(s => s.removed)
+      const subagent = useSession(s => s.subagent !== null)
+      const accounts = snapshot?.accounts ?? []
+      const selected = snapshot?.sessionAccountId ?? ''
+      const hint = text(t, subagent ? 'subagentHint' : busy ? 'busySession' : 'routeHint')
+      return h('div', { className: 'gl-dock' },
         h('style', null, css),
-        h('h2', { className: 'gl-heading' }, text(t, 'nav')),
-        h('p', { className: 'gl-intro' }, text(t, 'intro')),
-        h(AccountCard, {
-          t,
-          auth,
-          setAuth,
-          plan: planName(card?.planType),
-          onSignedOut: () => setCard(null),
-        }),
-        signedIn ? h(QuotaCard, { t, card, pending, onRefresh: () => void loadQuota(true) }) : null,
-      )
+        h('label', { htmlFor: 'gl-account-' + sessionId }, text(t, 'sessionAccount')),
+        h('select', { id: 'gl-account-' + sessionId, value: selected, title: hint,
+          'aria-label': text(t, 'sessionAccount'),
+          disabled: busy || removed || subagent || pending || !snapshot || !!error,
+          onChange: event => { if (!busy && !removed && !subagent && event.target.value) void mutate({ action: 'select', sessionId, accountId: event.target.value }) } },
+          h('option', { value: '', disabled: true }, text(t, subagent ? 'inheritedAccount' : 'chooseAccount')),
+          selected && !accounts.some(account => account.id === selected) ? h('option', { value: selected, disabled: true }, text(t, 'unconfigured')) : null,
+          accounts.map(account => h('option', { key: account.id, value: account.id, disabled: !account.configured }, account.label + (account.configured ? '' : ' · ' + text(t, 'unconfigured'))))),
+        h('span', { className: 'gl-dock-help', title: hint, tabIndex: 0, 'aria-label': hint }, 'ⓘ'),
+        error ? h('button', { className: 'gl-icon', title: error + ' · ' + text(t, 'retry'), 'aria-label': text(t, 'retry'), onClick: () => void refresh() }, '↻') : null)
+    }
+
+
+    Object.assign(copy.ru, { pickerTitle: 'Аккаунт и модель', pickerSearch: 'Поиск аккаунта или модели', pickerClose: 'Закрыть', pickerQuota: 'Использовано', pickerUnknown: 'Квота недоступна', pickerChoose: 'Выбрать модель', pickerOther: 'Другие провайдеры', pickerBusy: 'Дождитесь завершения работы сессии', pickerRefresh: 'Обновить квоты', pickerPartial: 'Аккаунт выбран, но модель не изменилась. Проверьте выбор перед отправкой.', pickerNoResults: 'Ничего не найдено', pickerLoad: 'Загрузка моделей…', pickerInstruction: 'Выберите уровень рассуждений, затем нажмите на модель.', pickerEmptyAccounts: 'Добавьте аккаунт в Настройки → ChatGPT Link.', pickerEmptyModels: 'Нет доступных моделей. Нажмите обновление справа вверху.' })
+    Object.assign(copy.en, { pickerTitle: 'Account and model', pickerSearch: 'Search accounts or models', pickerClose: 'Close', pickerQuota: 'Used', pickerUnknown: 'Quota unavailable', pickerChoose: 'Choose model', pickerOther: 'Other providers', pickerBusy: 'Wait until this session is idle', pickerRefresh: 'Refresh quotas', pickerPartial: 'Account changed but model selection failed. Check your selection before sending.', pickerNoResults: 'No matches', pickerLoad: 'Loading models…', pickerInstruction: 'Choose reasoning effort, then click a model.', pickerEmptyAccounts: 'Add an account in Settings → ChatGPT Link.', pickerEmptyModels: 'No available models. Use refresh at the top right.' })
+    Object.assign(copy.zh, { pickerTitle: '账号与模型', pickerSearch: '搜索账号或模型', pickerClose: '关闭', pickerQuota: '已用', pickerUnknown: '额度不可用', pickerChoose: '选择模型', pickerOther: '其他提供方', pickerBusy: '请等待会话空闲', pickerRefresh: '刷新额度', pickerPartial: '账号已切换，但模型选择失败。发送前请检查。', pickerNoResults: '没有结果', pickerLoad: '正在加载模型…', pickerInstruction: '选择推理强度，然后点击模型。', pickerEmptyAccounts: '在设置 → ChatGPT Link 中添加账号。', pickerEmptyModels: '没有可用模型，请点击右上角刷新。' })
+    Object.assign(copy.ru, { activeAccount: 'Используется', activeModel: 'Текущая' })
+    Object.assign(copy.en, { activeAccount: 'In use', activeModel: 'Current' })
+    Object.assign(copy.zh, { activeAccount: '使用中', activeModel: '当前' })
+    Object.assign(copy.ru, { pickerPreview: 'Просмотр', pickerReasoning: 'Рассуждения', pickerApplyHint: 'Нажмите модель, чтобы применить выбор', pickerTabOther: 'Другие', pickerNotApplied: 'Ещё не применено' })
+    Object.assign(copy.en, { pickerPreview: 'Preview', pickerReasoning: 'Reasoning', pickerApplyHint: 'Click a model to apply your selection', pickerTabOther: 'Other', pickerNotApplied: 'Not applied yet' })
+    Object.assign(copy.zh, { pickerPreview: '预览', pickerReasoning: '推理', pickerApplyHint: '点击模型以应用选择', pickerTabOther: '其他', pickerNotApplied: '尚未应用' })
+    const pickerCss = `
+.gl-compact-tabs{display:flex;gap:4px;padding:0 12px 8px;flex:none}
+.gl-compact-tabs button,.gl-account-tab,.gl-effort-button{border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:7px;padding:4px 9px;font:inherit;font-size:12px;cursor:pointer}
+.gl-compact-tabs button[aria-pressed=true],.gl-account-tab[aria-pressed=true],.gl-effort-button[aria-pressed=true]{color:var(--dsw-alias-state-business-primary);border-color:var(--dsw-alias-state-business-primary);background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 8%,transparent)}
+.gl-account-tabs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(96px,1fr);gap:6px;flex:none;overflow-x:auto;overflow-y:hidden;padding:2px 0 4px;scrollbar-width:thin}
+.gl-account-tab{position:relative;box-sizing:border-box;display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:3px;width:100%;height:54px;min-width:0;border-radius:9px;padding:7px 10px;text-align:left}
+.gl-account-tab>span:first-child{display:block;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:500;padding-right:8px}
+.gl-account-tab small{display:block;font-size:10px;line-height:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary)}
+.gl-account-tab[data-current=true]::after{content:'';position:absolute;top:8px;right:8px;width:5px;height:5px;border-radius:50%;background:var(--dsw-alias-state-business-primary)}
+.gl-account-tab:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
+.gl-account-tab[aria-pressed=true]{box-shadow:inset 0 0 0 1px var(--dsw-alias-state-business-primary)}
+.gl-account-tab:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:-2px}
+.gl-preview-caption{font-size:11px;color:var(--dsw-alias-label-tertiary);display:flex;gap:6px;align-items:center;overflow-wrap:anywhere}
+.gl-model-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;flex:none}
+.gl-model-cell{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:4px;text-align:left;cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-primary);border-radius:8px;padding:7px 9px;font:inherit;font-size:12px;min-height:34px}
+.gl-model-cell>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gl-model-cell:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
+.gl-model-cell[aria-pressed=true]{border-color:var(--dsw-alias-state-business-primary);background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 8%,transparent)}
+.gl-model-cell .gl-active-badge{font-size:9px;padding:0 4px}.gl-model-cell .gl-active-badge::before{display:none}
+.gl-model-cell:disabled,.gl-account-tab:disabled,.gl-effort-button:disabled{opacity:.5;cursor:default}
+.gl-efforts{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:11px;color:var(--dsw-alias-label-tertiary)}
+.gl-efforts>span{margin-right:4px}.gl-effort-button{font-size:11px;padding:3px 8px}
+.gl-compact-provider{width:100%;flex:none}
+
+.gl-active-badge{display:inline-flex;align-items:center;flex:none;gap:4px;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:500;line-height:16px;white-space:nowrap;color:var(--dsw-alias-state-business-primary);background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 10%,transparent)}
+.gl-active-badge::before{content:'';width:4px;height:4px;border-radius:50%;background:currentColor}
+.gl-picker-account[data-selected=true]{border-color:var(--dsw-alias-state-business-primary)}
+.gl-picker-account[data-selected=true]::after{content:'';position:absolute;inset:0;border:1px solid var(--dsw-alias-state-business-primary);border-radius:inherit;box-shadow:inset 2px 0 0 var(--dsw-alias-state-business-primary);pointer-events:none;z-index:5}
+.gl-picker-account[data-selected=true]>.gl-picker-account-name{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 6%,transparent)}
+.gl-picker-account-name{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.gl-picker-account-name>.gl-active-badge{margin-left:auto}
+.gl-picker-row[data-active=true]{background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 8%,transparent);box-shadow:inset 2px 0 0 var(--dsw-alias-state-business-primary)}
+.gl-picker-row[data-active=true]>button{display:flex;align-items:center;gap:8px}
+.gl-picker-row[data-active=true]>button>.gl-active-badge{margin-left:auto}
+.gl-picker-row>button>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gl-picker-account-name>span:first-child{min-width:0;overflow-wrap:anywhere}
+
+.gl-limit{min-width:0;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;padding:9px 12px;display:flex;flex-direction:column;gap:5px;background:var(--dsw-alias-settings-card-fill)}
+.gl-limit-title{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:500;line-height:18px}
+.gl-limit-title>.gl-limit-update{flex:none;gap:5px;font-weight:400;white-space:nowrap}
+.gl-limit-meta{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.gl-limit-meta [data-tone=error]{color:var(--dsw-alias-state-error-primary)}
+.gl-limit-track{height:5px;overflow:hidden;border-radius:99px;background:var(--dsw-alias-bg-module-platform)}
+.gl-limit-fill{height:100%;border-radius:99px;background:var(--dsw-alias-label-primary)}
+.gl-limit-fill[data-tone=error]{background:var(--dsw-alias-state-error-primary)}
+.gl-limit-stack{display:flex;flex-direction:column;gap:6px;min-width:0}
+.gl-limit-update{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums}
+.gl-limit-update .gl-icon{width:20px;height:20px}
+.gl-picker-section{display:flex;flex-direction:column;gap:8px;flex:none}
+.gl-picker-section>h3{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--dsw-alias-label-tertiary);margin:2px 0;font-weight:600}
+.gl-picker-others{border-top:1px solid var(--dsw-alias-border-l2);padding-top:10px}
+.gl-picker-account{position:relative;isolation:isolate;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;overflow:hidden;flex:none}
+.gl-picker-account[data-selected=true]{border-color:var(--dsw-alias-state-business-primary)}
+.gl-picker-account>.gl-picker-group{border:0;border-radius:0}
+.gl-picker-account-name{padding:8px 10px;font-weight:600;font-size:12px;overflow-wrap:anywhere}
+.gl-picker-account-name small{font-weight:400;color:var(--dsw-alias-label-tertiary)}
+.gl-picker-account>.gl-limit-stack,.gl-picker-account>.gl-note{margin:0;padding:0 8px 8px}
+.gl-picker-account .gl-limit{padding:7px 9px}
+
+.gl-picker-trigger{display:inline-flex;align-items:center;gap:6px;max-width:360px;min-width:0;border:0;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:12px;padding:4px 6px;border-radius:8px}
+.gl-picker-trigger:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.gl-picker-trigger>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:230px}
+.gl-picker-quota{font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap}
+.gl-picker-dialog{box-sizing:border-box;width:min(480px,calc(100vw - 24px));max-height:min(640px,calc(100dvh - 32px));padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:16px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);overflow:hidden}
+.gl-picker-dialog::backdrop{background:color-mix(in srgb,var(--dsw-alias-label-primary) 18%,transparent)}
+.gl-picker-shell{display:flex;flex-direction:column;max-height:min(638px,calc(100dvh - 34px));font-size:13px;line-height:20px}
+.gl-picker-head{display:flex;align-items:center;gap:10px;padding:10px 12px 8px}.gl-picker-head strong{flex:1;font-size:16px}
+.gl-picker-search{margin:0 12px 8px;flex:none;box-sizing:border-box;width:calc(100% - 24px)}
+.gl-picker-shell{min-height:0;overflow:hidden;isolation:isolate}
+.gl-picker-shell>.gl-picker-head,.gl-picker-shell>.gl-picker-info{flex-shrink:0;position:relative;z-index:1;background:var(--dsw-alias-bg-layer-1)}
+.gl-picker-list{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding:4px 12px 12px;display:flex;flex-direction:column;gap:6px;position:relative;isolation:isolate;contain:paint;scroll-padding-block:8px}
+.gl-picker-list .gl-picker-group>summary{position:static;inset:auto;z-index:auto}
+.gl-picker-list .gl-picker-row{position:relative;z-index:auto;flex-shrink:0}
+.gl-picker-list .gl-picker-group::details-content{position:static;overflow:visible}
+.gl-picker-group{border:1px solid var(--dsw-alias-border-l2);border-radius:12px;overflow:hidden;flex:none}
+.gl-picker-group>summary{cursor:pointer;list-style-position:inside;padding:8px 10px;background:var(--dsw-alias-settings-card-fill);overflow-wrap:anywhere;font-weight:600}
+.gl-picker-group>summary small{display:block;font-size:11px;line-height:18px;font-weight:400;color:var(--dsw-alias-label-tertiary);margin:4px 0 0 16px}
+.gl-picker-row{display:flex;align-items:center;gap:8px;padding:4px 10px;border-top:1px solid var(--dsw-alias-border-l2)}
+.gl-picker-row>button{flex:1;min-width:0;text-align:left;border:0;background:transparent;color:inherit;cursor:pointer;padding:5px 4px;font:inherit;border-radius:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gl-picker-row>button:hover{background:var(--dsw-alias-interactive-bg-hover)}.gl-picker-row button[aria-pressed=true]{font-weight:600;color:var(--dsw-alias-state-business-primary)}
+.gl-picker-row select{flex:none;max-width:112px;height:28px;background:var(--dsw-alias-bg-layer-1);color:inherit;border:1px solid var(--dsw-alias-border-l3);border-radius:6px;font:inherit;font-size:11px}
+.gl-picker-row button:disabled{opacity:.5;cursor:default}.gl-picker-info{padding:0 12px 8px;margin:0;font-size:11px;color:var(--dsw-alias-label-secondary)}
+@media(max-width:420px){.gl-picker-head{padding:12px}.gl-picker-list{padding:0 10px 12px}.gl-picker-trigger{max-width:230px}.gl-picker-quota{max-width:95px;overflow:hidden;text-overflow:ellipsis}}
+`
+    function UnifiedPicker({ t, sessionId, useSession, directory, locked }) {
+      const state = React.useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot, directory.store.getSnapshot)
+      const { snapshot, refresh, error: accountError } = useAccounts(sessionId)
+      const unavailable = useSession(s => s.subagent !== null)
+      const busy = useSession(s => s.running || s.awaitingFirstTurn || s.pendingSubmissions.length > 0 || s.removed || s.subagent !== null) || locked
+      const [open, setOpen] = React.useState(false)
+      const [query, setQuery] = React.useState('')
+      const [quotas, setQuotas] = React.useState({})
+      const [quotaPending, setQuotaPending] = React.useState({})
+      const quotaRequests = React.useRef(new Set())
+      const [now, setNow] = React.useState(Date.now())
+      React.useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer) }, [])
+      const [error, setError] = React.useState('')
+      const [selecting, setSelecting] = React.useState(false)
+      const [tab, setTab] = React.useState('gpt')
+      const [previewId, setPreviewId] = React.useState(null)
+      const [otherProvider, setOtherProvider] = React.useState(null)
+      const [commonEffort, setCommonEffort] = React.useState(null)
+      const dialog = React.useRef(null), trigger = React.useRef(null), inFlight = React.useRef(false)
+      const selectedId = snapshot?.sessionAccountId
+      const accounts = snapshot?.accounts ?? []
+      const selectedAccount = accounts.find(a => a.id === selectedId)
+      const group = state.groups.find(g => g.id === state.current?.provider)
+      const currentModel = group?.models.find(m => m.id === state.current?.model)
+      const quotaText = card => !card || !card.windows?.length ? text(t, 'pickerUnknown') : card.windows.map(w => windowLabel(t, w) + ': ' + (Number.isFinite(w.usedPercent) ? text(t, 'remaining', { n: String(Math.round(Math.max(0, Math.min(100, 100 - w.usedPercent)))) }) : text(t, 'pickerUnknown'))).join(' · ') + (card.freshness === 'stale' ? ' ≈' : '')
+      const loadQuota = React.useCallback(async (ids, force = false, signal) => {
+        await Promise.all(ids.map(async id => {
+          if (quotaRequests.current.has(id)) return
+          quotaRequests.current.add(id)
+          setQuotaPending(old => ({ ...old, [id]: true }))
+          try {
+            const card = await request('api/chatgpt-quota?accountId=' + encodeURIComponent(id), force ? {} : undefined, signal)
+            if (!signal?.aborted) setQuotas(old => ({ ...old, [id]: card }))
+          } catch {
+            if (!signal?.aborted) setQuotas(old => old[id] ? { ...old, [id]: { ...old[id], freshness: 'stale' } } : old)
+          } finally {
+            quotaRequests.current.delete(id)
+            setQuotaPending(old => ({ ...old, [id]: false }))
+          }
+        }))
+      }, [])
+      React.useEffect(() => { if (!unavailable) void directory.load().catch(e => setError(e.message)) }, [directory, unavailable])
+      React.useEffect(() => {
+        const controller = new AbortController()
+        const ids = (open ? accounts.filter(a => a.configured).map(a => a.id) : selectedId ? [selectedId] : [])
+        if (ids.length) void loadQuota(ids, false, controller.signal)
+        const timer = setInterval(() => { if (ids.length) void loadQuota(ids, false, controller.signal) }, 60000)
+        return () => { controller.abort(); clearInterval(timer) }
+      }, [open, selectedId, accounts.map(a => a.id + a.configured).join(','), loadQuota])
+      React.useEffect(() => {
+        const node = dialog.current
+        if (open) { if (node && !node.open) node.showModal() }
+        else if (node?.open) { node.close(); trigger.current?.focus() }
+        return () => { if (node?.open) node.close() }
+      }, [open])
+      const close = () => { if (!inFlight.current) { setOpen(false); trigger.current?.focus() } }
+      const choose = async (account, provider, model) => {
+        if (busy || inFlight.current) return
+        inFlight.current = true; setSelecting(true); setError('')
+        let changedAccount = false
+        try {
+          if (account && account.id !== selectedId) {
+            await request('api/chatgpt-accounts', { action: 'select', sessionId, accountId: account.id })
+            changedAccount = true; accountsChanged(); await refresh()
+          }
+          const key = provider + '/' + model.id
+          const preferredEffort = displayedEffort
+          const effort = model.reasoning?.efforts?.some(level => level.id === preferredEffort) ? preferredEffort : model.reasoning?.defaultEffort
+          const result = await directory.select({ provider, model: model.id, ...(effort ? { reasoningEffort: effort } : {}) })
+          if (!result.ok) throw new Error(result.error?.message ?? 'Selection failed')
+          setOpen(false); trigger.current?.focus()
+        } catch (e) {
+          setError((changedAccount ? text(t, 'pickerPartial') + ' ' : '') + (e.message ?? 'Selection failed'))
+        } finally { inFlight.current = false; setSelecting(false) }
+      }
+      const nativeModels = state.groups.find(g => g.id === 'chatgpt-session')?.models ?? []
+      const otherGroups = state.groups.filter(g => g.id !== 'chatgpt-session')
+      const previewAccount = accounts.find(a => a.id === previewId) ?? selectedAccount ?? accounts[0]
+      const previewGroup = otherGroups.find(g => g.id === otherProvider) ?? otherGroups.find(g => g.id === state.current?.provider) ?? otherGroups[0]
+      const provider = tab === 'gpt' ? 'chatgpt-session' : previewGroup?.id
+      const models = tab === 'gpt' ? nativeModels : previewGroup?.models ?? []
+      const previewIsCurrent = tab === 'gpt' ? state.current?.provider === 'chatgpt-session' && previewAccount?.id === selectedId : state.current?.provider === provider
+      const levels = [...new Map(models.flatMap(m => m.reasoning?.efforts ?? []).map(level => [level.id, level])).values()]
+      const displayedEffort = commonEffort ?? (previewIsCurrent ? state.current?.reasoningEffort : undefined) ?? models[0]?.reasoning?.defaultEffort
+      const visibleModels = models.filter(m => m.name.toLowerCase().includes(query.trim().toLowerCase()))
+      const compactQuota = card => {
+        const w = card?.windows?.find(w => w.id === 'weekly' || w.id?.includes('week')) ?? card?.windows?.[0]
+        return w && Number.isFinite(w.usedPercent) ? text(t, 'remaining', { n: String(Math.round(Math.max(0, Math.min(100, 100 - w.usedPercent)))) }) + (card.freshness === 'stale' ? ' ≈' : '') : '—'
+      }
+      const triggerQuotaText = card => {
+        const w = card?.windows?.find(w => w.windowDurationMins === 10080 && !w.id.includes(':')) ?? card?.windows?.[0]
+        if (!w) return text(t, 'pickerUnknown')
+        const remaining = Number.isFinite(w.usedPercent) ? Math.round(Math.max(0, Math.min(100, 100 - w.usedPercent))) + '%' : '—'
+        const reset = Number.isFinite(w.resetsAt) ? text(t, 'resetCountdown', { span: span(t, w.resetsAt - now) }) : text(t, 'noReset')
+        return remaining + ' · ' + reset + (card.freshness === 'stale' ? ' ≈' : '')
+      }
+      const triggerLabel = currentModel ? currentModel.name + (state.current?.reasoningEffort ? ' · ' + state.current.reasoningEffort : '') + (state.current?.provider === 'chatgpt-session' && selectedAccount ? ' · ' + selectedAccount.label : '') : text(t, 'pickerChoose')
+      if (unavailable) return null
+      return h(React.Fragment, null,
+        h('style', null, css + pickerCss),
+        h('button', { ref: trigger, type: 'button', className: 'gl-picker-trigger', title: triggerLabel, onClick: () => { setQuery(''); setTab(state.current?.provider === 'chatgpt-session' ? 'gpt' : 'other'); setPreviewId(selectedId ?? null); setOtherProvider(state.current?.provider ?? null); setCommonEffort(null); setOpen(true) }, disabled: !!locked, 'aria-haspopup': 'dialog', 'aria-expanded': open },
+          h('span', null, triggerLabel), state.current?.provider === 'chatgpt-session' && selectedId ? h('small', { className: 'gl-picker-quota', title: quotaText(quotas[selectedId]) + ' · ' + triggerQuotaText(quotas[selectedId]) }, triggerQuotaText(quotas[selectedId])) : null, ' ▾'),
+        h('dialog', { ref: dialog, className: 'gl-picker-dialog', 'aria-label': text(t, 'pickerTitle'), onCancel: e => { e.preventDefault(); close() }, onClick: e => { if (e.target === dialog.current) close() } },
+          h('div', { className: 'gl-picker-shell' },
+            h('header', { className: 'gl-picker-head' }, h('strong', null, text(t, 'pickerTitle')),
+              h('button', { type: 'button', className: 'gl-icon', title: text(t, 'pickerRefresh'), 'aria-label': text(t, 'pickerRefresh'), disabled: selecting, onClick: () => { void directory.load().catch(e => setError(e.message)); void refresh(); void loadQuota(accounts.filter(a => a.configured).map(a => a.id), true) } }, RefreshIcon),
+              h('button', { type: 'button', className: 'gl-icon', 'aria-label': text(t, 'pickerClose'), disabled: selecting, onClick: close }, '×')),
+            tab === 'other' ? h('input', { className: 'gl-input gl-picker-search', value: query, placeholder: text(t, 'pickerChoose'), 'aria-label': text(t, 'pickerSearch'), onChange: e => setQuery(e.target.value) }) : null,
+            h('div', { className: 'gl-compact-tabs', role: 'group', 'aria-label': text(t, 'pickerTitle') },
+              h('button', { type: 'button', 'aria-pressed': tab === 'gpt', onClick: () => { setTab('gpt'); setQuery(''); setCommonEffort(null) } }, 'ChatGPT'),
+              h('button', { type: 'button', 'aria-pressed': tab === 'other', onClick: () => { setTab('other'); setQuery(''); setCommonEffort(null) } }, text(t, 'pickerTabOther'))),
+            busy ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'pickerBusy')) : null,
+            accountError ? h('p', { className: 'gl-picker-info', role: 'alert' }, accountError) : !snapshot ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'loading')) : !accounts.length ? h('p', { className: 'gl-picker-info' }, text(t, 'pickerEmptyAccounts')) : null,
+            error || state.error ? h('p', { className: 'gl-picker-info', role: 'alert' }, error || state.error) : null,
+            h('div', { className: 'gl-picker-list' },
+              tab === 'gpt' ? h(React.Fragment, null,
+                h('div', { className: 'gl-account-tabs', role: 'group', 'aria-label': text(t, 'gptAccountsBlock') },
+                  accounts.map(account => h('button', { type: 'button', className: 'gl-account-tab', key: account.id,
+                    'aria-pressed': previewAccount?.id === account.id, 'data-current': state.current?.provider === 'chatgpt-session' && selectedId === account.id ? 'true' : undefined,
+                    title: account.label + ' · ' + quotaText(quotas[account.id]) + (state.current?.provider === 'chatgpt-session' && selectedId === account.id ? ' · ' + text(t, 'activeAccount') : '') + (previewAccount?.id === account.id ? ' · ' + text(t, 'pickerPreview') : ''), disabled: selecting,
+                    'aria-label': account.label + ' · ' + (account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')) + (state.current?.provider === 'chatgpt-session' && selectedId === account.id ? ' · ' + text(t, 'activeAccount') : ''),
+                    onClick: () => { setPreviewId(account.id); setQuery('') } },
+                    h('span', null, account.label.split('@')[0]), h('small', null, account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured'))))),
+                previewAccount ? h('div', { className: 'gl-preview-caption' }, h('span', null, previewAccount.label), h('span', { className: 'gl-active-badge' }, text(t, previewIsCurrent ? 'activeAccount' : 'pickerPreview'))) : null,
+                previewAccount?.configured ? h(RemainingQuota, { t, card: quotas[previewAccount.id], now, pending: !!quotaPending[previewAccount.id], onRefresh: () => void loadQuota([previewAccount.id], true) }) : null)
+                : h('select', { className: 'gl-input gl-compact-provider', value: previewGroup?.id ?? '', 'aria-label': text(t, 'otherProvidersBlock'), onChange: e => { setOtherProvider(e.target.value); setCommonEffort(null); setQuery('') } }, otherGroups.map(g => h('option', { value: g.id, key: g.id }, g.name))),
+              levels.length ? h('div', { className: 'gl-efforts', role: 'group', 'aria-label': text(t, 'pickerReasoning') },
+                h('span', null, text(t, 'pickerReasoning')),
+                levels.map(level => h('button', { className: 'gl-effort-button', type: 'button', key: level.id, disabled: busy || selecting, 'aria-pressed': displayedEffort === level.id, onClick: () => setCommonEffort(level.id) }, level.name ?? level.id))) : null,
+              h('div', { className: 'gl-model-grid' }, visibleModels.map(model => {
+                const active = previewIsCurrent && state.current?.model === model.id
+                const unsupportedEffort = !!model.reasoning?.efforts?.length && !!displayedEffort && !model.reasoning.efforts.some(level => level.id === displayedEffort)
+                return h('button', { type: 'button', className: 'gl-model-cell', key: model.id, 'aria-pressed': active,
+                  disabled: busy || selecting || unsupportedEffort || (tab === 'gpt' && !previewAccount?.configured),
+                  title: model.name + ' · ' + (displayedEffort ?? ''), onClick: () => void choose(tab === 'gpt' ? previewAccount : null, provider, model) },
+                  h('span', null, model.name), active ? h('span', { className: 'gl-active-badge' }, text(t, 'activeModel')) : null)
+              })),
+              !visibleModels.length ? h('p', { className: 'gl-note', role: 'status' }, text(t, state.status === 'loading' ? 'pickerLoad' : query ? 'pickerNoResults' : 'pickerEmptyModels')) : null,
+              h('p', { className: 'gl-note' }, text(t, 'pickerApplyHint'))))))
+
     }
 
     // A link glyph, drawn with currentColor through a mask so it follows the nav's own color.
@@ -623,54 +987,16 @@ window.__ModuleLoader__.load({
       }
     }
 
-    // The picker labels every model with its route, and groups each route under one section.
-    const pickerCss = `
-section[data-menu-group]:has([role="menuitemradio"] [data-provider-id="openai-codex"]),
-[role="menuitemradio"]:has([data-provider-id="openai-codex"]){display:none}
-`
-
-    /** Where the latest sign-in status goes; a no-op until the picker gate is running. */
-    const modelGate = { report: () => {} }
-
-    /**
-     * Hide the GPT models from the picker while no ChatGPT account is signed in.
-     *
-     * The host lists every configured route whether or not it can authenticate, and offers no
-     * way to filter the list, so a signed-out picker still offered models that only fail. The
-     * hiding is CSS keyed on the picker's own `data-provider-id`, toggled through `media`.
-     * Status is read at start and on window focus, and the settings page reports changes as
-     * they happen. An unreadable status hides nothing, so a broken request never takes away
-     * models that work; and if the picker's markup changes, the models simply show again.
-     */
-    function hideSignedOutModels() {
-      const style = document.createElement('style')
-      style.textContent = pickerCss
-      style.media = 'not all'
-      document.head.appendChild(style)
-      modelGate.report = (status) => {
-        style.media = status === 'signed-in' ? 'not all' : 'all'
-      }
-      const check = () => {
-        getAuth().then((view) => {
-          if (typeof view?.status === 'string') modelGate.report(view.status)
-        }, () => {})
-      }
-      window.addEventListener('focus', check)
-      check()
-      return () => {
-        window.removeEventListener('focus', check)
-        modelGate.report = () => {}
-        style.remove()
-      }
-    }
-
     return {
-      inject: ['slots', 'locale'],
+      inject: ['slots', 'locale', 'modelDirectories'],
       apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, copy), 'dsh-gpt-link: locale')
         const t = ctx.locale.bind(NS)
-        ctx.effect(() => markNavEntry(() => t('nav')), 'dsh-gpt-link: nav icon')
-        ctx.effect(() => hideSignedOutModels(), 'dsh-gpt-link: picker gate')
+        // Navigation keeps the host's own icon; do not mutate other slots' DOM.
+        // Do not filter another provider's DOM or auto-select a model/account.
+        ctx.slots.inject('conversation.input.model', () => ctx.slots.register({
+          name: 'conversation.input.model', priority: -100, locale: NS,
+        }, props => h(UnifiedPicker, { ...props, t, directory: ctx.modelDirectories.directoryFor(props.sessionId) })))
         ctx.slots.inject('settings.section', () => ctx.slots.register({
           name: 'settings.section',
           id: 'codex-link',
