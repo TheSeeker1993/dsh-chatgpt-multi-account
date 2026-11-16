@@ -1,5 +1,9 @@
-# Standalone bundle. Does not require or override the upstream dsh-gpt-link bundle.
-# Disable upstream/local prototype before enabling this bundle (shared API/route).
+# Compatibility handover: old bundles remain installed for rollback.
+# Missing optional legacy rows are harmless on a fresh profile.
+- id: codex-link
+  disabled: true
+- id: chatgpt-multi-account
+  disabled: true
 - insert:
-    - id: chatgpt-multi-account
+    - id: chatgpt-multi-account-release
       name: dsh-chatgpt-multi-account
