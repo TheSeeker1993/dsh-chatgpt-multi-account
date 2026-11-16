@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.1
+
+- Animated card fill height now represents remaining quota, from the bottom up.
+- Uses the primary weekly window when available, otherwise the first primary window.
+- Unknown quota is not shown as a full card; stale data is dimmed and marked approximately.
+- Fill and numeric caption use the same clamped remaining percentage. Hover changes animation energy, not fill height.
+- Reduced-motion disables the fill-height transition.
+
 ## 0.4.0
 
 - Integrated Fan Cards account picker into the main plugin (no UI companion required).

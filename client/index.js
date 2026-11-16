@@ -542,6 +542,11 @@ window.__ModuleLoader__.load({
     Object.assign(copy.ru, { remaining: 'Остаётся {n}%', resetCountdown: 'До сброса: {span}', gptAccountsBlock: 'Аккаунты ChatGPT', otherProvidersBlock: 'Другие провайдеры', quotaStale: 'Данные устарели', quotaWeekly: 'Недельный лимит', quotaFiveHour: 'Лимит на 5 часов' })
     Object.assign(copy.en, { remaining: '{n}% remaining', resetCountdown: 'Resets in: {span}', gptAccountsBlock: 'ChatGPT accounts', otherProvidersBlock: 'Other providers', quotaStale: 'Outdated data', quotaWeekly: 'Weekly limit', quotaFiveHour: '5-hour limit' })
     Object.assign(copy.zh, { remaining: '剩余 {n}%', resetCountdown: '重置倒计时：{span}', gptAccountsBlock: 'ChatGPT 账号', otherProvidersBlock: '其他提供方', quotaStale: '数据已过期', quotaWeekly: '每周限额', quotaFiveHour: '5 小时限额' })
+    function accountFill(card) {
+      const windows = card?.windows ?? []
+      const window = windows.find(w => w.windowDurationMins === 10080 && !w.id?.includes(':')) ?? windows.find(w => !w.id?.includes(':')) ?? windows[0]
+      return window && Number.isFinite(window.usedPercent) ? Math.max(0, Math.min(100, 100 - window.usedPercent)) : null
+    }
     function WindowRow({ t, window, now, card, pending, onRefresh }) {
       const percent = Number.isFinite(window.usedPercent) ? Math.max(0, Math.min(100, 100 - window.usedPercent)) : null
       const danger = percent !== null && percent <= 10
@@ -718,7 +723,10 @@ window.__ModuleLoader__.load({
 /* Siri Orb mesh adapted from SmoothUI (MIT), Eduardo Calvo.
    idle: rotation 20/.6=33.333s, sheen 12/(1+.6)*2=15s, breath5.5s. */
 @property --gl-orb-angle{syntax:"<angle>";inherits:false;initial-value:0deg}
-.gl-card-orb-clip{position:absolute;inset:1px;border-radius:inherit;overflow:hidden;pointer-events:none;z-index:0}
+.gl-card-orb-clip{position:absolute;inset:1px;border-radius:inherit;overflow:hidden;pointer-events:none;z-index:0;clip-path:inset(calc(100% - var(--gl-quota-fill,0%)) 0 0 0);transition:clip-path .65s cubic-bezier(.22,1,.36,1)}
+.gl-fan-card[data-quota-known=false] .gl-card-orb-clip{visibility:hidden}
+.gl-fan-card[data-quota-stale=true] .gl-card-orb-clip{opacity:.65}
+@media(prefers-reduced-motion:reduce){.gl-card-orb-clip{transition:none}}
 .gl-card-orb{display:block;position:absolute;inset:-18%;width:136%;height:136%;border-radius:inherit;isolation:isolate;opacity:.23;pointer-events:none;background:var(--dsw-alias-bg-layer-1);animation:gl-orb-breathe 5.5s cubic-bezier(.645,.045,.355,1) infinite;transition:opacity .3s ease,filter .3s ease;filter:saturate(.8)}
 .gl-fan-card:not(:disabled):hover .gl-card-orb,.gl-fan-card:not(:disabled):focus-visible .gl-card-orb{opacity:.52;filter:saturate(1.3)}
 .gl-card-orb-clip::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,color-mix(in srgb,var(--dsw-alias-bg-layer-1) 12%,transparent),color-mix(in srgb,var(--dsw-alias-bg-layer-1) 72%,transparent));pointer-events:none;z-index:1}
@@ -913,7 +921,9 @@ window.__ModuleLoader__.load({
         onFocus: () => setExpanded(true), onBlur: e => { if (!e.currentTarget.contains(e.relatedTarget)) { setExpanded(false); setHot(-1) } } },
         accounts.map((account, i) => h('button', { ref: node => { nodes.current[i] = node }, key: account.id, type: 'button', className: 'gl-fan-card',
           'aria-pressed': previewId === account.id, 'data-current': currentId === account.id ? 'true' : undefined,
-          style: { zIndex: hot === i ? 30 : previewId === account.id ? 20 : i + 1 },
+          style: { zIndex: hot === i ? 30 : previewId === account.id ? 20 : i + 1, '--gl-quota-fill': (account.configured ? accountFill(quotas[account.id]) ?? 0 : 0) + '%' },
+          'data-quota-known': account.configured && accountFill(quotas[account.id]) !== null ? 'true' : 'false',
+          'data-quota-stale': quotas[account.id]?.freshness === 'stale' ? 'true' : undefined,
           title: account.label + ' · ' + quotaText(quotas[account.id]),
           'aria-label': account.label + ' · ' + (account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')) + (currentId === account.id ? ' · ' + text(t, 'activeAccount') : ''),
           disabled: selecting, onPointerEnter: () => setHot(i), onFocus: () => setHot(i),
@@ -1011,8 +1021,8 @@ window.__ModuleLoader__.load({
       const displayedEffort = commonEffort ?? (previewIsCurrent ? state.current?.reasoningEffort : undefined) ?? models[0]?.reasoning?.defaultEffort
       const visibleModels = models.filter(m => m.name.toLowerCase().includes(query.trim().toLowerCase()))
       const compactQuota = card => {
-        const w = card?.windows?.find(w => w.id === 'weekly' || w.id?.includes('week')) ?? card?.windows?.[0]
-        return w && Number.isFinite(w.usedPercent) ? text(t, 'remaining', { n: String(Math.round(Math.max(0, Math.min(100, 100 - w.usedPercent)))) }) + (card.freshness === 'stale' ? ' ≈' : '') : '—'
+        const remaining = accountFill(card)
+        return remaining === null ? '—' : text(t, 'remaining', { n: String(Math.round(remaining)) }) + (card.freshness === 'stale' ? ' ≈' : '')
       }
       const triggerQuotaText = card => {
         const w = card?.windows?.find(w => w.windowDurationMins === 10080 && !w.id.includes(':')) ?? card?.windows?.[0]
