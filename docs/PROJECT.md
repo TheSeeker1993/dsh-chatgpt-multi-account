@@ -33,7 +33,7 @@
 - `legacy` использует исходную запись `llm-pi-ai/openai-codex`; именованные — `dsh-gpt-link/account-<uuid>`. Формат native grant, секреты остаются в DSH Credentials. Не менять ключи при переносе.
 - `openai-codex` — внутренняя/legacy модель; session-aware route — `chatgpt-session`. Не подменять глобальный токен. Нет ambient fallback, автопереключения и балансировки.
 - Привязка хранится долговечно. Встроенные subagents наследуют родителя один раз; новые обычные сессии/forks требуют выбора.
-- Ребинд, relogin, удаление и расход сбросов запрещены при active lease/running session/authorization; соблюдать единый `Accounts.exclusive` и assertIdle. Второй независимый Accounts для расхода небезопасен.
+- Ребинд, relogin и удаление запрещены при active lease/running session/authorization. По явной просьбе пользователя ручной расход сбросов разрешён при active lease/running session, но не при authorization. Сброс использует тот же `Accounts.exclusive`, проверку аккаунта/identity и два подтверждения; не вызывает assertIdle и не меняет lease/binding. Остальные операции сохраняют assertIdle. Второй независимый Accounts для расхода небезопасен.
 - Replay привязан к локальному и issuer account IDs; при смене аккаунта удалять чужие replay IDs. Текст истории при этом остаётся.
 
 ## Квоты и сбросы

@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { Resets, RESET_CREDITS_URL } from '../multi/resets.js'
+import { Accounts } from '../multi/accounts.js'
 
 function fixture() {
   let now = Date.parse('2026-06-20T00:00:00Z'), busy = false, posts = 0, gets = 0
@@ -10,6 +11,8 @@ function fixture() {
   const calls = []
   let tail = Promise.resolve()
   const accounts = {
+    authorizing: new Set(),
+    isAuthorizing: () => false,
     assertAccount(id) { assert.ok(records.has(id), 'unknown account') },
     assertIdle(id) { this.assertAccount(id); if (busy) { const error = new Error('ACCOUNT_BUSY'); error.code = 'ACCOUNT_BUSY'; throw error } },
     recordStore(id) { return { readRecord: async () => structuredClone(records.get(id)) } },
@@ -83,11 +86,50 @@ test('issuer/refresh changes revoke consent; access rotation does not', async ()
   const f = fixture(), final = await confirm(f); f.records.get('a').payload.access = 'rotated'
   assert.equal((await f.service.consume('a', final.nonce)).outcome, 'reset')
 })
-test('busy and expired grants block mutation without refreshing', async () => {
-  const f = fixture(), final = await confirm(f); f.setBusy(true)
-  await assert.rejects(f.service.consume('a', final.nonce), code('ACCOUNT_BUSY')); assert.equal(f.posts, 0)
-  f.setBusy(false); f.records.get('a').payload.expires = 1
+test('busy account permits both confirmations and exactly one consume', async () => {
+  const f = fixture(); f.setBusy(true)
+  const final = await confirm(f)
+  assert.equal((await f.service.consume('a', final.nonce)).outcome, 'reset')
+  assert.equal((await f.service.consume('a', final.nonce)).outcome, 'reset')
+  assert.equal(f.posts, 1)
+})
+test('expired grants block mutation without refreshing', async () => {
+  const f = fixture(), final = await confirm(f)
+  f.records.get('a').payload.expires = 1
+  await assert.rejects(f.service.consume('a', final.nonce), code('RESET_TOKEN_EXPIRED'))
   assert.equal((await f.service.list('a', true)).error, 'RESET_TOKEN_EXPIRED'); assert.equal(f.posts, 0)
+})
+test('authorization blocks every mutation through either authorization guard', async () => {
+  for (const guard of ['authorizing', 'isAuthorizing']) {
+    for (const stage of ['begin', 'advance', 'consume']) {
+      const f = fixture(); f.setBusy(true)
+      const pending = stage === 'advance' ? await f.service.begin('a', 'credit-1') : stage === 'consume' ? await confirm(f) : null
+      if (guard === 'authorizing') f.service.accounts.authorizing.add('a')
+      else f.service.accounts.isAuthorizing = id => id === 'a'
+      await assert.rejects(f.service[stage]('a', pending?.nonce ?? 'credit-1'), code('LOGIN_IN_PROGRESS'))
+      assert.equal(f.posts, 0)
+    }
+  }
+})
+test('dispatch rechecks account and authorization after asynchronous validation', async () => {
+  for (const change of ['remove', 'authorizing', 'isAuthorizing']) {
+    const f = fixture(), final = await confirm(f)
+    const original = f.service.identity.bind(f.service)
+    let reads = 0
+    f.service.identity = async id => {
+      const identity = await original(id)
+      if (++reads === 2) {
+        if (change === 'remove') f.records.delete(id)
+        else if (change === 'authorizing') f.service.accounts.authorizing.add(id)
+        else f.service.accounts.isAuthorizing = () => true
+      }
+      return identity
+    }
+    await assert.rejects(f.service.consume('a', final.nonce), change === 'remove' ? /unknown account/ : code('LOGIN_IN_PROGRESS'))
+    assert.equal(f.posts, 0)
+    await assert.rejects(f.service.consume('a', final.nonce))
+    assert.equal(f.posts, 0)
+  }
 })
 test('unknown POST outcome is terminal and cached, never automatically replayed', async () => {
   const f = fixture(), final = await confirm(f)
@@ -97,6 +139,52 @@ test('unknown POST outcome is terminal and cached, never automatically replayed'
   assert.equal((await f.service.consume('a', final.nonce)).outcome, 'unknown')
   assert.equal((await f.service.consume('a', final.nonce)).outcome, 'unknown'); assert.equal(f.posts, 1)
   f.setFailure(false); assert.equal((await f.service.list('a')).availableCount, 1)
+})
+test('real Accounts retains active lease and running binding during manual reset', async () => {
+  const maps = { accounts: new Map(), sessions: new Map() }, records = new Map()
+  const domain = { table: name => ({ get: id => maps[name].get(id), entries: () => maps[name].entries(), put: async (id, value) => maps[name].set(id, value), delete: async id => maps[name].delete(id) }), close: async () => {} }
+  const credentials = {
+    readRecord: async key => structuredClone(records.get(key)),
+    describeRecord: async key => ({ configured: records.has(key) }),
+    deleteRecord: async key => records.delete(key),
+  }
+  let running = false
+  const accounts = new Accounts({ domain, credentials, isSessionBusy: () => running })
+  const a = await accounts.create('Synthetic A'), b = await accounts.create('Synthetic B')
+  const f = fixture()
+  for (const id of [a, b]) records.set(accounts.key(id), structuredClone(f.records.get('a')))
+  await accounts.select('session-a', a)
+  const lease = await accounts.acquireSession('session-a')
+  running = true
+  f.service.accounts = accounts
+  try {
+    const final = await confirm(f, a)
+    const original = f.service.http
+    f.service.http = async (url, options) => {
+      if (options.method === 'POST') {
+        assert.equal(accounts.activeAccounts.get(a), 1)
+        assert.equal(accounts.activeSessions.get('session-a'), 1)
+        assert.equal(await accounts.resolveSession('session-a'), a)
+      }
+      return original(url, options)
+    }
+    assert.equal((await f.service.consume(a, final.nonce)).outcome, 'reset')
+    assert.equal(f.posts, 1)
+    assert.equal(accounts.activeAccounts.get(a), 1)
+    assert.equal(accounts.activeSessions.get('session-a'), 1)
+    await assert.rejects(accounts.remove(a), code('ACCOUNT_BUSY'))
+    await assert.rejects(accounts.select('session-a', b), code('SESSION_BUSY'))
+    assert.equal(await accounts.resolveSession('session-a'), a)
+    // The running-session guard remains after the network lease is released.
+    lease.release()
+    await assert.rejects(accounts.remove(a), code('ACCOUNT_BUSY'))
+    await assert.rejects(accounts.select('session-a', b), code('SESSION_BUSY'))
+    assert.equal(await accounts.resolveSession('session-a'), a)
+    running = false
+    await accounts.select('session-a', b)
+    await accounts.remove(a)
+    assert.equal(await accounts.resolveSession('session-a'), b)
+  } finally { lease.release(); f.service.close(); await accounts.close() }
 })
 test('only official consume codes are exposed; response bodies never leak', async () => {
   for (const outcome of ['nothing_to_reset', 'no_credit', 'already_redeemed', 'unknown']) {

@@ -90,7 +90,7 @@ export class Resets {
   }
   mutation(id, fn) {
     return this.serial(id, () => this.accounts.exclusive(async () => {
-      this.accounts.assertIdle(id)
+      this.accounts.assertAccount(id)
       if (this.accounts.authorizing?.has(id) || this.accounts.isAuthorizing?.(id)) fail('LOGIN_IN_PROGRESS')
       return fn()
     }))
@@ -141,7 +141,8 @@ export class Resets {
       this.available(await this.read(id, identity, true), item.credit.id)
       const current = await this.identity(id)
       if (current.fingerprint !== item.fingerprint) fail('RESET_ACCOUNT_CHANGED')
-      this.accounts.assertIdle(id)
+      this.accounts.assertAccount(id)
+      if (this.accounts.authorizing?.has(id) || this.accounts.isAuthorizing?.(id)) fail('LOGIN_IN_PROGRESS')
       if (this.closed) fail('RESET_STOPPED')
       if (item.expiresAt <= this.now()) fail('RESET_CONFIRMATION_EXPIRED')
       let outcome = 'unknown'

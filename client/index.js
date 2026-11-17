@@ -769,9 +769,12 @@ window.__ModuleLoader__.load({
       const credits = (data?.credits || []).filter(c => c && c.status === 'available')
       const button = (label, onClick, extra) => h('button', { type: 'button', onClick, disabled: busy || disabled || !open, ...extra }, label)
       return h('div', {
-        ref: root, className: 'gpt-reset-menu' + (autoOpen ? ' gpt-reset-auto' : ''),
+        ref: root, className: 'gpt-reset-menu' + (autoOpen ? ' gpt-reset-auto' : '') + (flow ? ' gpt-reset-warning' : ''),
         onKeyDown: event => { if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); if (autoOpen) invalidate(); else close() } },
-      }, h('style', null, `
+      }, flow ? h(MiniCardOrb, { seed: 23 }) : null, h('style', null, `
+        .gpt-reset-warning{isolation:isolate;overflow:hidden;border-radius:9px}
+        .gpt-reset-warning>.reset-body,.gpt-reset-warning>.reset-head{position:relative;z-index:1}
+        .gpt-reset-warning>.reset-body{background:transparent}
         .gpt-reset-menu{position:relative;width:100%;max-width:100%;margin-top:6px;color:var(--dsw-alias-label-primary);font:inherit}
         .gpt-reset-menu button{font:inherit;font-size:12px;color:inherit;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-module-platform);border-radius:7px;padding:6px 9px;text-align:left;cursor:pointer;white-space:normal}
         .gpt-reset-menu button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
@@ -1058,9 +1061,9 @@ window.__ModuleLoader__.load({
     }
 
 
-    Object.assign(copy.ru, { pickerTitle: 'Аккаунт и модель', pickerSearch: 'Поиск аккаунта или модели', pickerClose: 'Закрыть', pickerQuota: 'Использовано', pickerUnknown: 'Квота недоступна', pickerChoose: 'Выбрать модель', pickerOther: 'Другие провайдеры', pickerBusy: 'Дождитесь завершения работы сессии', pickerRefresh: 'Обновить квоты', pickerPartial: 'Аккаунт выбран, но модель не изменилась. Проверьте выбор перед отправкой.', pickerNoResults: 'Ничего не найдено', pickerLoad: 'Загрузка моделей…', pickerInstruction: 'Выберите уровень рассуждений, затем нажмите на модель.', pickerEmptyAccounts: 'Добавьте аккаунт в Настройки → ChatGPT Link.', pickerEmptyModels: 'Нет доступных моделей. Нажмите обновление справа вверху.' })
-    Object.assign(copy.en, { pickerTitle: 'Account and model', pickerSearch: 'Search accounts or models', pickerClose: 'Close', pickerQuota: 'Used', pickerUnknown: 'Quota unavailable', pickerChoose: 'Choose model', pickerOther: 'Other providers', pickerBusy: 'Wait until this session is idle', pickerRefresh: 'Refresh quotas', pickerPartial: 'Account changed but model selection failed. Check your selection before sending.', pickerNoResults: 'No matches', pickerLoad: 'Loading models…', pickerInstruction: 'Choose reasoning effort, then click a model.', pickerEmptyAccounts: 'Add an account in Settings → ChatGPT Link.', pickerEmptyModels: 'No available models. Use refresh at the top right.' })
-    Object.assign(copy.zh, { pickerTitle: '账号与模型', pickerSearch: '搜索账号或模型', pickerClose: '关闭', pickerQuota: '已用', pickerUnknown: '额度不可用', pickerChoose: '选择模型', pickerOther: '其他提供方', pickerBusy: '请等待会话空闲', pickerRefresh: '刷新额度', pickerPartial: '账号已切换，但模型选择失败。发送前请检查。', pickerNoResults: '没有结果', pickerLoad: '正在加载模型…', pickerInstruction: '选择推理强度，然后点击模型。', pickerEmptyAccounts: '在设置 → ChatGPT Link 中添加账号。', pickerEmptyModels: '没有可用模型，请点击右上角刷新。' })
+    Object.assign(copy.ru, { pickerTitle: 'Аккаунт и модель', pickerSearch: 'Поиск аккаунта или модели', pickerClose: 'Закрыть', pickerQuota: 'Использовано', pickerUnknown: 'Квота недоступна', pickerChoose: 'Выбрать модель', pickerOther: 'Другие провайдеры', pickerBusy: 'Во время работы нельзя менять модель. Ручной сброс доступен.', pickerRefresh: 'Обновить квоты', pickerPartial: 'Аккаунт выбран, но модель не изменилась. Проверьте выбор перед отправкой.', pickerNoResults: 'Ничего не найдено', pickerLoad: 'Загрузка моделей…', pickerInstruction: 'Выберите уровень рассуждений, затем нажмите на модель.', pickerEmptyAccounts: 'Добавьте аккаунт в Настройки → ChatGPT Link.', pickerEmptyModels: 'Нет доступных моделей. Нажмите обновление справа вверху.' })
+    Object.assign(copy.en, { pickerTitle: 'Account and model', pickerSearch: 'Search accounts or models', pickerClose: 'Close', pickerQuota: 'Used', pickerUnknown: 'Quota unavailable', pickerChoose: 'Choose model', pickerOther: 'Other providers', pickerBusy: 'Model changes are blocked while running. Manual resets remain available.', pickerRefresh: 'Refresh quotas', pickerPartial: 'Account changed but model selection failed. Check your selection before sending.', pickerNoResults: 'No matches', pickerLoad: 'Loading models…', pickerInstruction: 'Choose reasoning effort, then click a model.', pickerEmptyAccounts: 'Add an account in Settings → ChatGPT Link.', pickerEmptyModels: 'No available models. Use refresh at the top right.' })
+    Object.assign(copy.zh, { pickerTitle: '账号与模型', pickerSearch: '搜索账号或模型', pickerClose: '关闭', pickerQuota: '已用', pickerUnknown: '额度不可用', pickerChoose: '选择模型', pickerOther: '其他提供方', pickerBusy: '运行时无法切换模型，但仍可手动重置额度。', pickerRefresh: '刷新额度', pickerPartial: '账号已切换，但模型选择失败。发送前请检查。', pickerNoResults: '没有结果', pickerLoad: '正在加载模型…', pickerInstruction: '选择推理强度，然后点击模型。', pickerEmptyAccounts: '在设置 → ChatGPT Link 中添加账号。', pickerEmptyModels: '没有可用模型，请点击右上角刷新。' })
     Object.assign(copy.ru, { activeAccount: 'Используется', activeModel: 'Текущая' })
     Object.assign(copy.en, { activeAccount: 'In use', activeModel: 'Current' })
     Object.assign(copy.zh, { activeAccount: '使用中', activeModel: '当前' })
@@ -1328,6 +1331,8 @@ window.__ModuleLoader__.load({
       const { snapshot, refresh, error: accountError } = useAccounts(sessionId)
       const unavailable = useSession(s => s.subagent !== null)
       const busy = useSession(s => s.running || s.awaitingFirstTurn || s.pendingSubmissions.length > 0 || s.removed || s.subagent !== null) || locked
+      // Generating blocks model changes, not an explicitly confirmed manual reset.
+      const resetUnavailable = useSession(s => s.removed || s.subagent !== null) || locked
       const orbLink = React.useRef(null)
       if (!orbLink.current) orbLink.current = createOrbLink()
       const [open, setOpen] = React.useState(false)
@@ -1507,7 +1512,7 @@ window.__ModuleLoader__.load({
               tab === 'gpt' ? h(React.Fragment, null,
                 h(FanAccounts, { accounts, previewId: previewAccount?.id, currentId: state.current?.provider === 'chatgpt-session' ? selectedId : null,
                   onPreview: id => { setPreviewId(id); setQuery('') }, quotaText, compactQuota, quotas, selecting: selecting || resetBusy, t, orbLink, now, resets }),
-                 previewAccount?.configured ? h(ResetMenu, { key: previewAccount.id, t, accountId: previewAccount.id, accountLabel: previewAccount.label, autoOpen: true, disabled: busy || selecting, onBusyChange: setResetBusy, onConsumed: id => { void loadQuota([id], true); void loadResets([id], true) } }) : null)
+                 previewAccount?.configured ? h(ResetMenu, { key: previewAccount.id, t, accountId: previewAccount.id, accountLabel: previewAccount.label, autoOpen: true, disabled: resetUnavailable || selecting, onBusyChange: setResetBusy, onConsumed: id => { void loadQuota([id], true); void loadResets([id], true) } }) : null)
                 : h('select', { className: 'gl-input gl-compact-provider', value: previewGroup?.id ?? '', 'aria-label': text(t, 'otherProvidersBlock'), onChange: e => { setOtherProvider(e.target.value); setCommonEffort(null); setQuery('') } }, otherGroups.map(g => h('option', { value: g.id, key: g.id }, g.name))),
               levels.length ? h('div', { className: 'gl-efforts', role: 'group', 'aria-label': text(t, 'pickerReasoning') },
                 levels.map((level, index) => h(ResetChoiceCard, { className: 'gl-effort-button', type: 'button', key: level.id, disabled: busy || selecting || resetBusy, 'aria-pressed': displayedEffort === level.id, onClick: () => setCommonEffort(level.id) }, h(MiniCardOrb, { seed: index + 1 }), h('span', { className: 'gl-mini-label' }, level.name ?? level.id)))) : null,
