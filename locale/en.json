@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "ChatGPT Link",
-    "description": "Multiple ChatGPT accounts, durable per-session selection, and separate account quotas. Use the chatgpt-session provider for isolation."
+    "description": "Multiple ChatGPT accounts and per-session quotas. Explicitly select Auto: ChatGPT / DeepSeek in Settings → Web Search; loading never changes settings. GPT search consumes ChatGPT allowance (exact cost unmeasured); native DeepSeek keeps existing billing. Fetch unchanged."
   }
 }

@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "ChatGPT Link",
-    "description": "多个 ChatGPT 账号、持久化的每会话账号选择及独立额度。账号隔离需使用 chatgpt-session 提供方。"
+    "description": "多个 ChatGPT 账号和独立额度。请在设置 → 网页搜索中明确选择 Auto: ChatGPT / DeepSeek；加载插件不会修改设置。GPT 搜索消耗 ChatGPT 额度（具体消耗未测量）；原生 DeepSeek 保持现有计费。Fetch 不变。"
   }
 }

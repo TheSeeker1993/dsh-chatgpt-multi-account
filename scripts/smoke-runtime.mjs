@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { installMultiAccount } from '../multi/host.js'
+import { apply } from '../index.js'
 const require = createRequire(join(process.env.DSH_INSTALL_DIR, 'package.json'))
 async function runtimeImport(name) {
   if (name.startsWith('@earendil-works/pi-ai')) {
@@ -14,7 +14,7 @@ async function runtimeImport(name) {
   return import(pathToFileURL(require.resolve(name)).href)
 }
 const routes = new Map(), effects = [], records = new Map(), flows = new Map()
-const tables = new Map(), listeners = new Map()
+const tables = new Map(), listeners = new Map(), searchProviders = new Map(), injections = []
 let adapter
 const ctx = {
   loader: { import: runtimeImport },
@@ -22,7 +22,10 @@ const ctx = {
   effect(fn) { const dispose = fn(); if (typeof dispose === 'function') effects.push(dispose) },
   on(name, fn) { listeners.set(name, fn) },
   get() { return undefined },
-  agents: { get() { return undefined } }, sessions: { get() { return undefined } },
+  agents: { get() { return undefined }, currentInitiator() { return undefined } }, sessions: { get() { return undefined } },
+  inject(names, callback) { assert.deepEqual(names, ['web', 'settings']); injections.push(callback(this)) },
+  web: { registerSearchProvider(provider) { searchProviders.set(provider.id, provider); return () => searchProviders.delete(provider.id) } },
+  settings: { describe() { return [] }, update() { throw new Error('Installation must not change search or fetch settings') } },
   storageDomain: { async open(spec) {
     return { table(name) {
       if (!tables.has(name)) tables.set(name, new Map())
@@ -46,7 +49,10 @@ const ctx = {
   connection: { fetch: { register(route) { routes.set(route.path, route.fetch) } } },
   llm: { registerAdapter(ids, value) { assert.deepEqual(ids, ['chatgpt-session']); adapter = value; return () => {} } },
 }
-await installMultiAccount(ctx, {})
+await apply(ctx, {})
+await Promise.all(injections)
+assert.deepEqual([...searchProviders.keys()], ['chatgpt-session-search', 'model-aware-search'])
+await assert.rejects(searchProviders.get('model-aware-search').search({ query: 'synthetic' }), { code: 'SEARCH_INITIATOR_REQUIRED' })
 assert.equal(routes.size, 4)
 const models = await adapter.listModels('chatgpt-session')
 assert.equal(models.length, 7)

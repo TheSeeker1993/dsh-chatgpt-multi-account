@@ -1,10 +1,12 @@
-# Передача проекта · 16.11.2026
+# Передача проекта · 17.11.2026
+
+Рабочая версия: **0.5.0-preview.5**. Статус публикации подтверждается отдельно после push; номер версии сам по себе не означает публикацию.
 
 ## Что это
-Самостоятельный community-плагин DSH: несколько ChatGPT OAuth-аккаунтов, явный выбор аккаунта для каждой сессии, изолированные параллельные запросы, квоты и ручные сбросы Codex. Репозиторий: https://github.com/qixxby/dsh-chatgpt-multi-account (upstream Clukay-Fun/dsh-gpt-link). Рабочая версия новее опубликованной 0.4.1; изменения после cb23471 пока не опубликованы. `.git` и незакоммиченные изменения сохранены; автоматического push нет.
+Самостоятельный community-плагин DSH: несколько ChatGPT OAuth-аккаунтов, явный выбор аккаунта для каждой сессии, изолированные параллельные запросы, квоты и ручные сбросы Codex. Основной репозиторий: https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account (upstream Clukay-Fun/dsh-gpt-link); GitHub qixxby/dsh-chatgpt-multi-account — историческое зеркало. Статус удалённого релиза не выводить из локальных файлов. `.git` и незакоммиченные изменения сохранены; автоматического push нет.
 
 ## Среда и запуск
-- Проверенная цель: DSH Desktop 0.2.2-rc.2, встроенный pi-ai 1.3.0; Node 24. Не обещать совместимость с другими версиями без теста.
+- Engines: DSH >=0.2.2-rc.3 <0.2.3, встроенный pi-ai 1.3.0; Node 24. База API и native synthetic smoke — установленный rc.3; актуальный результат smoke подтверждать отдельным прогоном. Не обещать живой поиск или совместимость вне диапазона без теста.
 - Это не самостоятельный сайт. Устанавливать абсолютный путь к этой папке через DSH Plugin Manager. Не запускать отдельный Vite/web-сервер.
 - Основная папка после переноса: `C:\Users\User\Documents\AI\dsh-chatgpt-multi-account`.
 - Плагин может быть linked: после нового переноса переустановить по новому пути. Не удалять активную папку.
@@ -53,6 +55,20 @@
 
 Preview аккаунта не применяет сессию: применение только кликом модели. Shared ResetChoiceCard: lift -4px spring420/20, энергия260/24, hover speed2.8×; independent gradient phases/directions. Reduced-motion, no RAF after settle, cleanup observers/handlers обязательны. Анимации не должны скрывать текст/клики. Не терять `aria-pressed`, focus, disabled/busy при UI-рефакторинге.
 
+## Настройка моделей субагентов
+
+В настройках ChatGPT Link добавлен блок статуса и кнопка «Настроить субагентов». Установка и чтение статуса не изменяют разрешения. После показа семи точных маршрутов и отдельного подтверждения клиент использует `remote.settings.describe()` / `mutate('subagent-model-selection-settings', ops, revision)` (проверено по исходникам DSH 0.2.2-rc.3). Свежий read, union существующих `allowedModels` с семью `chatgpt-session` маршрутами, включение `enabled`, optimistic revision и контрольный read. Остальные разрешения сохраняются, включая `openai-codex`; удаляются пользователем только через официальный UI. Конфликт не ретраится. Ошибки/read-only не выдают ложный успех. Настройка действует только на новые чаты; профиль вручную не редактировать.
+
+## Поиск по фактическому маршруту
+
+- Интеграция ZIP: `search/provider.js` — native OAuth GPT hosted search; `search/auto.js` — Auto и делегирование штатному DeepSeek. Используется тот же живой Accounts, общие credentials/leases, не второй экземпляр.
+- Включение только явно через **Настройки → Веб-поиск → Auto: ChatGPT / DeepSeek** (`model-aware-search`). Отдельный **ChatGPT (session account)** имеет ID `chatgpt-session-search`. Загрузка/установка никогда не выбирают провайдера и не меняют настройки. `search/setup.js` / административный tool не подключается. Fetch неизменён.
+- Инициатор и фактический request route фиксируются до await. `chatgpt-session` — точная session binding; `openai-codex` — только `legacy`, независимо от селектора сессии, с общим lease и без изменения binding. Отсутствующий маршрут/инициатор — явная ошибка. Никакого cross-backend/account fallback.
+- GPT: фиксированный helper `gpt-6.1-sol`, low reasoning, native OAuth, только query без истории/replay. Sources — настоящие citations завершённого hosted search. Поиск расходует ChatGPT allowance, точное списание не измерено; отдельный API-ключ не нужен, бесплатность/безлимит не обещать.
+- Остальные маршруты — native DeepSeek с существующими authorization/endpoint/count/throttling/`searchBilling` и обычной тарификацией. Не менять глобальные настройки ради dispatch. Для отключения Auto выбрать штатный DeepSeek в стандартном экране; credentials, bindings и история сохраняются.
+- GPT lease удерживается до завершения native работы и отслеживаемых credential operations, включая гонку abort с native auth/refresh. Ошибки DeepSeek санитизируются; unload отменяет активные операции.
+- API Host установленного DSH 0.2.2-rc.3 изучены. Живой платный поиск и визуальная проверка данной интеграции не выполнялись. Проверки автора ZIP не выдавать за проверки новой сборки.
+
 ## Проверки и границы доказанного
 ```sh
 npm test
@@ -62,6 +78,6 @@ git diff --check
 npm run typecheck
 npm run build
 ```
-Последний полный suite: 81 тест; проверены account isolation, busy/leases, auth, quotas, replay, confirmations, CSRF с synthetic DSH origin. Реальные GET списка credits успешно проверялись для четырёх аккаунтов; реальный consume НЕ выполнялся. Визуальная оценка опирается на скриншоты пользователя и source-review; последнее размещение виджета/темы/focus в живом DSH браузере не подтверждено (browser ранее требовал авторизацию). Тесты не заменяют эту проверку.
+Полный suite версии 0.5.0-preview.5: 143 passed, 0 failed/skipped. Прежние 105 тестов и 38 дополнительных проверяют account isolation, busy/leases, auth, quotas, replay, confirmations, CSRF и поиск. Оба installed-runtime smoke прошли на Electron 44.7.0 / DSH rc.3: интеграция Host entry, native API DeepSeek и настоящий native Models с синтетическим некооперативным OAuth refresh, без сети/секретов профиля. git diff --check и npm pack --dry-run прошли. Реальные GET списка credits успешно проверялись для четырёх аккаунтов; реальный consume НЕ выполнялся. Визуальная оценка опирается на скриншоты пользователя и source-review; последнее размещение виджета/темы/focus в живом DSH браузере не подтверждено (browser ранее требовал авторизацию). Тесты не заменяют эту проверку.
 
-Публичная GitHub-версия отстаёт. Перед публикацией обновить версию/CHANGELOG/скриншоты, прогнать secret scan и pack/test, запросить разрешение на push. Не переносить `.dsh`, credentials, OAuth exports или личные account labels в репозиторий. Для запуска на другом компьютере пользователь входит в аккаунты заново.
+Перед публикацией в основной GitFlic-репозиторий обновить версию/CHANGELOG/скриншоты, прогнать secret scan и pack/test, запросить разрешение на push. Не переносить `.dsh`, credentials, OAuth exports или личные account labels в репозиторий. Для запуска на другом компьютере пользователь входит в аккаунты заново.

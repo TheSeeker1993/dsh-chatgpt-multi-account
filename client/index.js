@@ -188,6 +188,15 @@ window.__ModuleLoader__.load({
     const css = `
 .gl{width:100%;max-width:760px;color:var(--dsw-alias-label-primary);display:flex;flex-direction:column;gap:14px;font-size:14px;line-height:22px}
 .gl-account{border:1px solid var(--dsw-alias-settings-card-stroke,var(--dsw-alias-border-l2));border-radius:14px;overflow:hidden;background:var(--dsw-alias-settings-card-fill)}
+.gl-subagent-setup{padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0;box-sizing:border-box}
+.gl-subagent-setup>.gl-account-heading{padding:0;margin:0;font-size:14px;line-height:22px}
+.gl-subagent-setup>.gl-note{max-width:62ch}
+.gl-setup-status{display:flex;align-items:center;gap:8px;color:var(--dsw-alias-label-primary);font-weight:500}
+.gl-subagent-setup>.gl-choices{padding-top:4px;gap:8px}
+.gl-subagent-setup .gl-sub{padding:12px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}
+.gl-subagent-setup .gl-sub ul{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(210px,100%),1fr));gap:6px}
+.gl-subagent-setup .gl-sub li{padding:6px 8px;border:1px solid var(--dsw-alias-border-l2);border-radius:6px;font-size:11px;line-height:16px;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.gl-subagent-setup .gl-btn{max-width:100%;height:auto;min-height:32px;padding:6px 12px;white-space:normal;text-align:center;justify-content:center;line-height:18px}
 .gl-account>.gl-card{border:0;border-radius:0;background:transparent}
 .gl-account>.gl-card+.gl-card{border-top:1px solid var(--dsw-alias-border-l2)}
 .gl-account-heading{padding:14px 16px 0;font-weight:600;overflow-wrap:anywhere}
@@ -1019,7 +1028,81 @@ window.__ModuleLoader__.load({
               h('button', { className: 'gl-btn', type: 'button', disabled: pending, onClick: () => setConfirming(false) }, text(t, 'cancel')))) : null))
     }
 
-    function GptLinkSection({ t }) {
+    const SUBAGENT_MODELS = Object.freeze(['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'])
+    const SUBAGENT_SETTINGS = 'subagent-model-selection-settings'
+    async function readSubagentSettings(remote) {
+      const result = await remote.settings.describe()
+      if (!result?.ok || !Array.isArray(result.value?.namespaces)) throw new Error('setupUnavailable')
+      const descriptor = result.value.namespaces.find(entry => entry?.ns === SUBAGENT_SETTINGS)
+      const value = descriptor?.value
+      if (!descriptor || !Number.isSafeInteger(descriptor.revision) || typeof value?.enabled !== 'boolean' || !Array.isArray(value.allowedModels)
+        || value.allowedModels.some(route => typeof route?.provider !== 'string' || typeof route?.model !== 'string')) throw new Error('setupUnavailable')
+      return { descriptor, writable: result.value.writable === true,
+        configured: value.enabled && SUBAGENT_MODELS.every(model => value.allowedModels.some(route => route.provider === 'chatgpt-session' && route.model === model)) }
+    }
+    async function configureSubagentModels(remote) {
+      // Fresh read + optimistic revision: preserve other user routes, never overwrite a concurrent edit.
+      const current = await readSubagentSettings(remote)
+      if (!current.writable) throw new Error('setupReadOnly')
+      if (current.configured) return current
+      const allowedModels = current.descriptor.value.allowedModels.map(route => ({ ...route }))
+      for (const model of SUBAGENT_MODELS) if (!allowedModels.some(route => route.provider === 'chatgpt-session' && route.model === model)) allowedModels.push({ provider: 'chatgpt-session', model })
+      const result = await remote.settings.mutate(SUBAGENT_SETTINGS, [
+        { op: 'set', path: ['enabled'], value: true },
+        { op: 'set', path: ['allowedModels'], value: allowedModels },
+      ], current.descriptor.revision)
+      if (!result.ok) throw new Error(result.error?.code === 'settings/conflict' ? 'setupConflict' : 'setupFailed')
+      const verified = await readSubagentSettings(remote)
+      if (!verified.configured) throw new Error('setupConflict')
+      return verified
+    }
+    function SubagentSetup({ t, remote }) {
+      const [state, setState] = React.useState(null), [error, setError] = React.useState('')
+      const [busy, setBusy] = React.useState(false), [confirming, setConfirming] = React.useState(false)
+      const [saved, setSaved] = React.useState(false)
+      const alive = React.useRef(false), lock = React.useRef(false), cancel = React.useRef(null)
+      const load = async () => {
+        if (lock.current) return
+        lock.current = true; setBusy(true); setError('')
+        try { const next = await readSubagentSettings(remote); if (alive.current) setState(next) }
+        catch { if (alive.current) { setState(null); setError('setupUnavailable') } }
+        finally { lock.current = false; if (alive.current) setBusy(false) }
+      }
+      React.useEffect(() => { alive.current = true; void load(); return () => { alive.current = false } }, [remote])
+      React.useEffect(() => { if (confirming) cancel.current?.focus() }, [confirming])
+      const apply = async () => {
+        if (lock.current || !confirming) return
+        lock.current = true; setBusy(true); setError(''); setSaved(false)
+        try {
+          const next = await configureSubagentModels(remote)
+          if (alive.current) { setState(next); setConfirming(false); setSaved(true) }
+        } catch (e) { if (alive.current) { setError(['setupReadOnly','setupConflict','setupUnavailable'].includes(e.message) ? e.message : 'setupFailed'); setConfirming(false); setState(null) } }
+        finally { lock.current = false; if (alive.current) setBusy(false) }
+      }
+      return h('section', { className: 'gl-account gl-subagent-setup', 'aria-label': text(t, 'setupTitle') },
+        h('h3', { className: 'gl-account-heading' }, text(t, 'setupTitle')),
+        h('p', { className: 'gl-note gl-setup-status', role: 'status', 'aria-live': 'polite' },
+          h('span', { className: 'gl-dot', 'data-tone': busy ? 'busy' : state?.configured ? 'ok' : error ? 'error' : undefined, 'aria-hidden': true }),
+          text(t, busy ? 'loading' : state?.configured ? 'setupReady' : state ? 'setupNeeded' : 'setupUnavailable')),
+        h('p', { className: 'gl-note' }, text(t, 'setupNewChats')),
+        saved ? h('p', { className: 'gl-note', role: 'status' }, text(t, 'setupSaved')) : null,
+        error ? h('p', { className: 'gl-note', role: 'alert' }, text(t, error)) : null,
+        state && !state.writable ? h('p', { className: 'gl-note' }, text(t, 'setupReadOnly')) : null,
+        confirming ? h('div', { className: 'gl-sub', role: 'group', 'aria-label': text(t, 'setupConfirm') },
+          h('p', { className: 'gl-note' }, text(t, 'setupConfirm')),
+          h('ul', null, SUBAGENT_MODELS.map(model => h('li', { key: model }, 'chatgpt-session/' + model))),
+          h('div', { className: 'gl-choices' },
+            h('button', { ref: cancel, className: 'gl-btn', type: 'button', disabled: busy, onClick: () => setConfirming(false) }, text(t, 'cancel')),
+            h('button', { className: 'gl-btn', type: 'button', disabled: busy, onClick: apply }, text(t, 'confirm')))) :
+          h('div', { className: 'gl-choices' },
+            h('button', { className: 'gl-btn', type: 'button', disabled: busy || !state?.writable || state.configured, onClick: () => { setSaved(false); setConfirming(true) } }, text(t, 'setupAction')),
+            h('button', { className: 'gl-btn', type: 'button', disabled: busy, onClick: load }, text(t, 'refresh'))))
+    }
+    Object.assign(copy.ru, { setupTitle: 'Модели субагентов', setupReady: 'Настроено: доступны все 7 моделей ChatGPT.', setupNeeded: 'Требуется настройка.', setupAction: 'Настроить субагентов', setupNewChats: 'Применяется только к новым чатам. Субагенты наследуют выбранный аккаунт родителя.', setupConfirm: 'Включить выбор моделей и добавить эти 7 маршрутов? Остальные разрешения, включая openai-codex, сохранятся. Убрать ненужные маршруты можно в настройках Subagent.', setupSaved: 'Сохранено. Создайте новый чат, чтобы применить разрешения.', setupUnavailable: 'Настройки субагентов недоступны. Проверьте официальный плагин Subagent и обновите статус.', setupReadOnly: 'Настройки доступны только для чтения.', setupConflict: 'Настройки изменились параллельно. Обновите статус и подтвердите ещё раз.', setupFailed: 'Не удалось сохранить настройки. Обновите статус и повторите подтверждение.' })
+    Object.assign(copy.en, { setupTitle: 'Subagent models', setupReady: 'Configured: all 7 ChatGPT models available.', setupNeeded: 'Setup required.', setupAction: 'Set up subagents', setupNewChats: 'Applies only to new chats. Subagents inherit the parent’s selected account.', setupConfirm: 'Enable model selection and add these 7 routes? All other permissions, including openai-codex, remain unchanged. Remove unwanted routes in Subagent settings.', setupSaved: 'Saved. Start a new chat to apply permissions.', setupUnavailable: 'Subagent settings unavailable. Check the official Subagent plugin and refresh status.', setupReadOnly: 'Settings are read-only.', setupConflict: 'Settings changed concurrently. Refresh status and confirm again.', setupFailed: 'Could not save settings. Refresh status and confirm again.' })
+    Object.assign(copy.zh, { setupTitle: '子代理模型', setupReady: '已配置：全部 7 个 ChatGPT 模型可用。', setupNeeded: '需要配置。', setupAction: '配置子代理', setupNewChats: '仅适用于新会话。子代理继承父会话选择的账号。', setupConfirm: '启用模型选择并添加这 7 个路由？其他权限（包括 openai-codex）保持不变。可在 Subagent 设置中移除不需要的路由。', setupSaved: '已保存。请新建会话以应用权限。', setupUnavailable: '子代理设置不可用。请检查官方 Subagent 插件并刷新状态。', setupReadOnly: '设置为只读。', setupConflict: '设置已被其他操作修改。请刷新状态并重新确认。', setupFailed: '保存失败。请刷新状态并重新确认。' })
+
+    function GptLinkSection({ t, remote }) {
       const { snapshot, error, pending, refresh, mutate } = useAccounts()
       const [label, setLabel] = React.useState('')
       return h('div', { className: 'gl' },
@@ -1035,7 +1118,8 @@ window.__ModuleLoader__.load({
           h('button', { className: 'gl-btn', type: 'button', onClick: () => void refresh() }, text(t, 'retry'))) : null,
         !snapshot && !error ? h('p', null, text(t, 'loading')) : null,
         snapshot?.accounts.length === 0 ? h('p', { className: 'gl-note' }, text(t, 'emptyAccounts')) : null,
-        snapshot?.accounts.map(account => h(AccountPanel, { key: account.id, t, account, pending, mutate })))
+        snapshot?.accounts.map(account => h(AccountPanel, { key: account.id, t, account, pending, mutate })),
+        h(SubagentSetup, { t, remote }))
     }
 
     function SessionAccountSelector({ t, sessionId, useSession }) {
@@ -1577,7 +1661,7 @@ window.__ModuleLoader__.load({
     }
 
     return {
-      inject: ['slots', 'locale', 'modelDirectories'],
+      inject: ['slots', 'locale', 'modelDirectories', 'remote', 'remote.settings'],
       apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, copy), 'dsh-gpt-link: locale')
         const t = ctx.locale.bind(NS)
@@ -1593,7 +1677,7 @@ window.__ModuleLoader__.load({
           label: () => t('nav'),
           locale: NS,
         }, function GptLinkSettings() {
-          return h(GptLinkSection, { t })
+          return h(GptLinkSection, { t, remote: ctx.remote })
         }))
       },
     }

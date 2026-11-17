@@ -126,24 +126,35 @@ export class Accounts {
   }
   async acquireSession(sessionId) {
     return this.exclusive(async () => {
-      const accountId = await this.resolveSession(sessionId)
-      if (this.authorizing.has(accountId) || this.isAuthorizing(accountId)) fail('LOGIN_IN_PROGRESS')
-      const record = await this.credentials.readRecord(accountKey(accountId))
-      const issuerAccount = record?.payload?.accountId
-      if (typeof issuerAccount !== 'string' || !issuerAccount) fail('ACCOUNT_SIGNED_OUT')
-      // A re-login can choose another issuer account under the same display label.
-      // Hash only public identity, never tokens, before persisting replay provenance.
-      const replayIdentity = createHash('sha256').update(`${accountId}:${issuerAccount}`).digest('hex')
-      this.activeAccounts.set(accountId, (this.activeAccounts.get(accountId) ?? 0) + 1)
-      this.activeSessions.set(sessionId, (this.activeSessions.get(sessionId) ?? 0) + 1)
-      let released = false
-      return { accountId, replayIdentity, release: () => {
-        if (released) return
-        released = true
-        this.activeAccounts.set(accountId, this.activeAccounts.get(accountId) - 1)
-        this.activeSessions.set(sessionId, this.activeSessions.get(sessionId) - 1)
-      } }
+      return this.reserveAccount(sessionId, await this.resolveSession(sessionId))
     })
+  }
+  // Native legacy routes reserve their explicit account without changing bindings.
+  async acquireAccount(sessionId, accountId) {
+    return this.exclusive(async () => {
+      if (!validSession(sessionId)) fail('SESSION_ACCOUNT_REQUIRED')
+      this.assertAccount(accountId)
+      return this.reserveAccount(sessionId, accountId)
+    })
+  }
+  // Call only inside the shared exclusive gate.
+  async reserveAccount(sessionId, accountId) {
+    if (this.authorizing.has(accountId) || this.isAuthorizing(accountId)) fail('LOGIN_IN_PROGRESS')
+    const record = await this.credentials.readRecord(accountKey(accountId))
+    const issuerAccount = record?.payload?.accountId
+    if (typeof issuerAccount !== 'string' || !issuerAccount) fail('ACCOUNT_SIGNED_OUT')
+    // A re-login can choose another issuer account under the same display label.
+    // Hash only public identity, never tokens, before persisting replay provenance.
+    const replayIdentity = createHash('sha256').update(`${accountId}:${issuerAccount}`).digest('hex')
+    this.activeAccounts.set(accountId, (this.activeAccounts.get(accountId) ?? 0) + 1)
+    this.activeSessions.set(sessionId, (this.activeSessions.get(sessionId) ?? 0) + 1)
+    let released = false
+    return { accountId, replayIdentity, release: () => {
+      if (released) return
+      released = true
+      this.activeAccounts.set(accountId, this.activeAccounts.get(accountId) - 1)
+      this.activeSessions.set(sessionId, this.activeSessions.get(sessionId) - 1)
+    } }
   }
   assertIdle(id) {
     this.assertAccount(id)

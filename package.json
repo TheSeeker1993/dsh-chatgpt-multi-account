@@ -1,21 +1,21 @@
 {
   "name": "dsh-chatgpt-multi-account",
-  "version": "0.5.0-preview.4",
-  "description": "Multiple ChatGPT accounts for DeepSeek Harness: per-session routing, compact model picker and remaining quota tracking.",
+  "version": "0.5.0-preview.5",
+  "description": "Multiple ChatGPT accounts for DeepSeek Harness: isolated session routing, quotas and model-aware ChatGPT / DeepSeek web search.",
   "author": "qixxby",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/qixxby/dsh-chatgpt-multi-account.git"
+    "url": "git+https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account.git"
   },
-  "homepage": "https://github.com/qixxby/dsh-chatgpt-multi-account#readme",
+  "homepage": "https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account",
   "bugs": {
     "url": "https://github.com/qixxby/dsh-chatgpt-multi-account/issues"
   },
   "type": "module",
   "engines": {
     "node": "^22.19.0 || >=24",
-    "dsh": ">=0.2.2-rc.2 <0.2.3"
+    "dsh": ">=0.2.2-rc.3 <0.2.3"
   },
   "exports": {
     ".": "./index.js",
@@ -26,9 +26,10 @@
   },
   "files": [
     "index.js",
-    "client",
+    "client/index.js",
     "lib",
     "multi",
+    "search",
     "cordis.patch.yml",
     "locale/*.json",
     "assets",
@@ -47,7 +48,8 @@
       "inject": [
         "@deepseek-ai/dsh-client-ui-settings",
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-model-selection"
+        "@deepseek-ai/dsh-client-ui-model-selection",
+        "@deepseek-ai/dsh-api-remotes"
       ]
     }
   },
