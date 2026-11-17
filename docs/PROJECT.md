@@ -1,6 +1,6 @@
 # Передача проекта · 17.11.2026
 
-Рабочая версия: **0.5.0-preview.5**. Статус публикации подтверждается отдельно после push; номер версии сам по себе не означает публикацию.
+Рабочая версия: **0.5.0-preview.6**. Статус публикации подтверждается отдельно после push; номер версии сам по себе не означает публикацию.
 
 ## Что это
 Самостоятельный community-плагин DSH: несколько ChatGPT OAuth-аккаунтов, явный выбор аккаунта для каждой сессии, изолированные параллельные запросы, квоты и ручные сбросы Codex. Основной репозиторий: https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account (upstream Clukay-Fun/dsh-gpt-link); GitHub qixxby/dsh-chatgpt-multi-account — историческое зеркало. Статус удалённого релиза не выводить из локальных файлов. `.git` и незакоммиченные изменения сохранены; автоматического push нет.
@@ -34,7 +34,7 @@
 - Storage domain `chatgpt_accounts` v1: `accounts[id]={label,createdAt}`, `sessions[sessionId]={accountId}`.
 - `legacy` использует исходную запись `llm-pi-ai/openai-codex`; именованные — `dsh-gpt-link/account-<uuid>`. Формат native grant, секреты остаются в DSH Credentials. Не менять ключи при переносе.
 - `openai-codex` — внутренняя/legacy модель; session-aware route — `chatgpt-session`. Не подменять глобальный токен. Нет ambient fallback, автопереключения и балансировки.
-- Привязка хранится долговечно. Встроенные subagents наследуют родителя один раз; новые обычные сессии/forks требуют выбора.
+- Привязка хранится долговечно. Встроенные subagents наследуют родителя один раз. По явной просьбе пользователя новые обычные чаты получают сохранённые account/model/reasoning defaults; первоначально первый подключённый аккаунт + gpt-6.1-sol low. Старые/resume/forks не переключаются, forks требуют выбора. При недоступном default не выбирать другой аккаунт.
 - Ребинд, relogin и удаление запрещены при active lease/running session/authorization. По явной просьбе пользователя ручной расход сбросов разрешён при active lease/running session, но не при authorization. Сброс использует тот же `Accounts.exclusive`, проверку аккаунта/identity и два подтверждения; не вызывает assertIdle и не меняет lease/binding. Остальные операции сохраняют assertIdle. Второй независимый Accounts для расхода небезопасен.
 - Replay привязан к локальному и issuer account IDs; при смене аккаунта удалять чужие replay IDs. Текст истории при этом остаётся.
 
@@ -54,6 +54,16 @@
 Аккаунты — ровные мини-карточки, не веер: имя, остаток %, countdown, число ручных сбросов, текущий аккаунт. Анимация занимает только оставшийся процент высоты снизу. Сбросы показываются автоматически при переключении карточки, без отдельной кнопки раскрытия; имя аккаунта сохраняется в предупреждениях. Ошибки/empty/loading не скрывать ради минимализма.
 
 Preview аккаунта не применяет сессию: применение только кликом модели. Shared ResetChoiceCard: lift -4px spring420/20, энергия260/24, hover speed2.8×; independent gradient phases/directions. Reduced-motion, no RAF after settle, cleanup observers/handlers обязательны. Анимации не должны скрывать текст/клики. Не терять `aria-pressed`, focus, disabled/busy при UI-рефакторинге.
+
+## Defaults для новых чатов
+
+`multi/defaults.js` хранит enabled/accountId/model/reasoningEffort отдельно от credentials в `chatgpt_defaults` v1/preferences/default. `chatgpt_accounts` v1 и его binding не мигрируются. Инициализация выбирает первый configured аккаунт, явное отключение сохраняется и не переинициализируется. Сохранение defaults — только метаданные, разрешено при работающем чате; оно не меняет модель/привязку текущего чата.
+
+`multi/defaults-host.js`: owner-auth HTTP GET/POST `/api/chatgpt-defaults`, no-store GET выдаёт случайный CSRF token, POST требует `x-chatgpt-defaults-csrf`; synthetic origin не сравнивать с GUI. `agent/created` serial hook проверяет source=startup, immutable firstLiveSeq=0, isSeeded=false, origin/parentSession отсутствуют и depth=0 до await. Затем тот же Accounts.exclusive сохраняет точную привязку и `agent.model.select` для нового чата до допуска запросов. Существующую binding не менять, при ошибке выбора удалить только новую binding. Resume/clear/compact/forks/subagents исключены. Недоступный default — ошибка без fallback.
+
+Проверки доработки defaults: полный suite 165/165, оба installed-runtime smoke, git diff --check и npm pack --dry-run пройдены; без реальных запросов и без подтверждённого live UI.
+
+UI чекбокс «Для новых чатов» отмечен только для совпадающей сохранённой комбинации. На других провайдерах/без настроенного аккаунта сохранение не угадывает модель; загрузка UI не выполняет POST. Новый выбор/снятие флажка влияют только на будущие обычные чаты.
 
 ## Настройка моделей субагентов
 

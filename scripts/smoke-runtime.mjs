@@ -53,7 +53,7 @@ await apply(ctx, {})
 await Promise.all(injections)
 assert.deepEqual([...searchProviders.keys()], ['chatgpt-session-search', 'model-aware-search'])
 await assert.rejects(searchProviders.get('model-aware-search').search({ query: 'synthetic' }), { code: 'SEARCH_INITIATOR_REQUIRED' })
-assert.equal(routes.size, 4)
+assert.equal(routes.size, 5)
 const models = await adapter.listModels('chatgpt-session')
 assert.equal(models.length, 7)
 const prepared = await adapter.prepareCall('chatgpt-session', 'gpt-6.1-sol')
@@ -76,6 +76,24 @@ records.set(`dsh-gpt-link/account-${id}`, { kind: 'grant', payload: { type: 'oau
 assert.equal((await call('/api/chatgpt-accounts', { action: 'select', accountId: id, sessionId: 'synthetic-session' })).data.sessionAccountId, id)
 assert.equal((await call(`/api/chatgpt-quota?accountId=${id}`)).data.message, 'quota-token-stale')
 assert.equal((await call(`/api/chatgpt-resets?accountId=${id}`)).data.error, 'RESET_TOKEN_EXPIRED')
+const defaults = (await call('/api/chatgpt-defaults')).data
+assert.equal(defaults.enabled, true)
+assert.equal(defaults.accountId, id)
+assert.equal(defaults.model, 'gpt-6.1-sol')
+assert.equal(defaults.reasoningEffort, 'low')
+let selection
+await listeners.get('agent/created')({ source: 'startup', agent: {
+  session: { id: 'synthetic-new-chat', firstLiveSeq: 0, header: { isSeeded: false } },
+  model: { select(value) { selection = value } },
+} })
+assert.deepEqual(selection, { provider: 'chatgpt-session', model: 'gpt-6.1-sol', reasoningEffort: 'low' })
+assert.equal((await call('/api/chatgpt-accounts?sessionId=synthetic-new-chat')).data.sessionAccountId, id)
+selection = undefined
+await listeners.get('agent/created')({ source: 'resume', agent: {
+  session: { id: 'synthetic-old-chat', firstLiveSeq: 0, header: { isSeeded: false } },
+  model: { select(value) { selection = value } },
+} })
+assert.equal(selection, undefined)
 assert.equal((await call('/api/chatgpt-accounts', { action: 'remove', accountId: id })).status, 200)
 assert.equal(records.size, 0)
 for (const dispose of effects.reverse()) await dispose()

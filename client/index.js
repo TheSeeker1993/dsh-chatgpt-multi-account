@@ -334,8 +334,14 @@ window.__ModuleLoader__.load({
     }
 
     // Cookie-authenticated, document-relative URLs preserve a mounted Host path.
+    let defaultsCsrfToken = null
     let resetCsrfToken = null
     async function request(path, body, signal) {
+      const defaultsRequest = path === 'api/chatgpt-defaults'
+      if (defaultsRequest && body !== undefined && !defaultsCsrfToken) {
+        await request('api/chatgpt-defaults', undefined, signal)
+        if (!defaultsCsrfToken) throw new Error('DEFAULT_CSRF_INVALID')
+      }
       const resetRequest = path.startsWith('api/chatgpt-resets')
       if (resetRequest && body !== undefined && !resetCsrfToken) {
         await request('api/chatgpt-resets?accountId=' + encodeURIComponent(body.accountId), undefined, signal)
@@ -343,12 +349,14 @@ window.__ModuleLoader__.load({
       }
       const response = await fetch(path, {
         method: body === undefined ? 'GET' : 'POST', cache: 'no-store', credentials: 'same-origin', signal,
-        headers: { accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(resetRequest && body !== undefined ? { 'x-chatgpt-reset-csrf': resetCsrfToken } : {}) },
+        headers: { accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(resetRequest && body !== undefined ? { 'x-chatgpt-reset-csrf': resetCsrfToken } : {}), ...(defaultsRequest && body !== undefined ? { 'x-chatgpt-defaults-csrf': defaultsCsrfToken } : {}) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       })
       const result = await response.json().catch(() => null)
       if (resetRequest && body === undefined && typeof result?.csrfToken === 'string' && /^[a-f0-9]{64}$/.test(result.csrfToken)) resetCsrfToken = result.csrfToken
       if (resetRequest && result?.error === 'RESET_CSRF_INVALID') resetCsrfToken = null
+      if (defaultsRequest && body === undefined && response.ok && typeof result?.csrfToken === 'string' && /^[a-f0-9]{64}$/.test(result.csrfToken)) defaultsCsrfToken = result.csrfToken
+      if (defaultsRequest && result?.error === 'DEFAULT_CSRF_INVALID') defaultsCsrfToken = null
       if (!response.ok) throw new Error(typeof result?.error === 'string' ? result.error : `HTTP ${response.status}`)
       if (result?.ok === false || result?.error) throw new Error(typeof result.error === 'string' ? result.error : result.error?.message || 'Request failed')
       return result
@@ -1308,7 +1316,12 @@ window.__ModuleLoader__.load({
 .gl-fan[data-many=true] .gl-fan-card{position:relative;top:auto;left:auto;width:100%!important;height:100px;will-change:auto}
 @media(prefers-reduced-motion:reduce){.gl-fan-card{will-change:auto}}
 
-.gl-compact-tabs{display:flex;gap:4px;padding:0 12px 8px;flex:none}
+.gl-compact-tabs{display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:0 12px 8px;flex:none}
+.gl-new-chat-defaults{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11px;color:var(--dsw-alias-label-secondary);cursor:pointer;position:relative}
+.gl-new-chat-defaults input{accent-color:var(--dsw-alias-state-business-primary);margin:0}
+.gl-new-chat-defaults input:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
+.gl-new-chat-defaults:has(input:disabled){opacity:.6;cursor:default}
+.gl-defaults-status{position:absolute;right:0;top:100%;z-index:2;max-width:240px;padding:4px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:4px}
 .gl-compact-tabs button,.gl-account-tab,.gl-effort-button{border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:7px;padding:4px 9px;font:inherit;font-size:12px;cursor:pointer}
 .gl-compact-tabs button[aria-pressed=true],.gl-account-tab[aria-pressed=true],.gl-effort-button[aria-pressed=true]{color:var(--dsw-alias-state-business-primary);border-color:var(--dsw-alias-state-business-primary);background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 8%,transparent)}
 .gl-account-tabs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(96px,1fr);gap:6px;flex:none;overflow-x:auto;overflow-y:hidden;padding:2px 0 4px;scrollbar-width:thin}
@@ -1408,6 +1421,63 @@ window.__ModuleLoader__.load({
           h('span', null, account.configured ? accountResetCaption(t, quotas[account.id], now) : '—'),
           h('span', null, text(t, 'cardResetCount', { n: String(account.configured && Number.isInteger(resets?.[account.id]?.availableCount) ? resets[account.id].availableCount : '—') })),
           currentId === account.id ? h('span', { className: 'gl-account-mini-active' }, text(t, 'activeAccount')) : null)))
+    }
+
+    Object.assign(copy.ru, { defaultsLabel: 'Для новых чатов', defaultsTitle: 'Сохранить этот аккаунт, текущую модель ChatGPT и уровень рассуждений только для будущих новых чатов', defaultsLoading: 'Загрузка настроек новых чатов…', defaultsError: 'Настройки новых чатов недоступны. Откройте виджет заново.', defaultsUnavailable: 'Выберите доступную модель ChatGPT и настроенный аккаунт.' })
+    Object.assign(copy.en, { defaultsLabel: 'For new chats', defaultsTitle: 'Save this account, current ChatGPT model and reasoning effort for future new chats only', defaultsLoading: 'Loading new chat defaults…', defaultsError: 'New chat defaults unavailable. Reopen the widget.', defaultsUnavailable: 'Select an available ChatGPT model and a configured account.' })
+    Object.assign(copy.zh, { defaultsLabel: '用于新会话', defaultsTitle: '仅为未来新会话保存此账号、当前 ChatGPT 模型和推理强度', defaultsLoading: '正在加载新会话设置…', defaultsError: '新会话设置不可用，请重新打开选择器。', defaultsUnavailable: '请选择可用的 ChatGPT 模型和已配置账号。' })
+
+    function newChatCombo(current, nativeModels, account, reasoningEffort, tab) {
+      const nativeModel = current?.provider === 'chatgpt-session' && nativeModels.find(model => model.id === current.model)
+      if (tab !== 'gpt' || !nativeModel || !account?.configured || typeof reasoningEffort !== 'string' || !nativeModel.reasoning?.efforts?.some(level => level.id === reasoningEffort)) return null
+      return { accountId: account.id, model: nativeModel.id, reasoningEffort }
+    }
+    function defaultsMatch(saved, combo) {
+      return !!(saved?.enabled && combo && saved.accountId === combo.accountId && saved.model === combo.model && saved.reasoningEffort === combo.reasoningEffort)
+    }
+    function NewChatDefaults({ open, combo, disabled, t }) {
+      const [saved, setSaved] = React.useState(null)
+      const [loading, setLoading] = React.useState(false)
+      const [busy, setBusy] = React.useState(false)
+      const [failed, setFailed] = React.useState(false)
+      const operation = React.useRef({ epoch: 0, locked: false, controller: null })
+      React.useEffect(() => {
+        const op = operation.current, epoch = ++op.epoch
+        op.controller?.abort(); op.locked = false
+        setSaved(null); setFailed(false); setBusy(false); setLoading(open)
+        if (!open) return
+        const controller = new AbortController(); op.controller = controller
+        request('api/chatgpt-defaults', undefined, controller.signal).then(result => {
+          if (epoch === op.epoch && !controller.signal.aborted) setSaved(result)
+        }).catch(() => {
+          if (epoch === op.epoch && !controller.signal.aborted) setFailed(true)
+        }).finally(() => {
+          if (epoch === op.epoch && !controller.signal.aborted) setLoading(false)
+        })
+        return () => { ++op.epoch; controller.abort(); op.locked = false }
+      }, [open])
+      const checked = defaultsMatch(saved, combo)
+      // A missing saved account must not block explicitly replacing it with a valid preview.
+      const unavailable = !saved || !combo
+      const change = async () => {
+        const op = operation.current
+        if (!open || disabled || loading || failed || unavailable || op.locked) return
+        op.locked = true; setBusy(true); setFailed(false)
+        const epoch = op.epoch, signal = op.controller.signal
+        try {
+          const result = await request('api/chatgpt-defaults', checked ? { action: 'disable' } : { action: 'save', ...combo }, signal)
+          if (epoch === op.epoch && !signal.aborted) setSaved(result)
+        } catch {
+          if (epoch === op.epoch && !signal.aborted) { setSaved(null); setFailed(true) }
+        } finally {
+          if (epoch === op.epoch && !signal.aborted) { op.locked = false; setBusy(false) }
+        }
+      }
+      const status = failed ? 'defaultsError' : loading ? 'defaultsLoading' : unavailable ? 'defaultsUnavailable' : 'defaultsTitle'
+      return h('label', { className: 'gl-new-chat-defaults', title: text(t, status) },
+        h('input', { type: 'checkbox', checked, disabled: !open || disabled || loading || busy || failed || unavailable, onChange: change, 'aria-busy': loading || busy }),
+        h('span', null, text(t, 'defaultsLabel')),
+        failed || loading ? h('span', { className: 'gl-defaults-status', role: failed ? 'alert' : 'status' }, text(t, status)) : null)
     }
 
     function UnifiedPicker({ t, sessionId, useSession, directory, locked }) {
@@ -1588,7 +1658,8 @@ window.__ModuleLoader__.load({
             tab === 'other' ? h('input', { className: 'gl-input gl-picker-search', value: query, placeholder: text(t, 'pickerChoose'), 'aria-label': text(t, 'pickerSearch'), onChange: e => setQuery(e.target.value) }) : null,
             h('div', { className: 'gl-compact-tabs', role: 'group', 'aria-label': text(t, 'pickerTitle') },
               h('button', { type: 'button', 'aria-pressed': tab === 'gpt', disabled: resetBusy, onClick: () => { setTab('gpt'); setQuery(''); setCommonEffort(null) } }, 'ChatGPT'),
-              h('button', { type: 'button', 'aria-pressed': tab === 'other', disabled: resetBusy, onClick: () => { setTab('other'); setQuery(''); setCommonEffort(null) } }, text(t, 'pickerTabOther'))),
+              h('button', { type: 'button', 'aria-pressed': tab === 'other', disabled: resetBusy, onClick: () => { setTab('other'); setQuery(''); setCommonEffort(null) } }, text(t, 'pickerTabOther')),
+              h(NewChatDefaults, { open, combo: newChatCombo(state.current, nativeModels, previewAccount, displayedEffort, tab), disabled: !!locked || selecting, t })),
             busy ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'pickerBusy')) : null,
             accountError ? h('p', { className: 'gl-picker-info', role: 'alert' }, accountError) : !snapshot ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'loading')) : !accounts.length ? h('p', { className: 'gl-picker-info' }, text(t, 'pickerEmptyAccounts')) : null,
             error || state.error ? h('p', { className: 'gl-picker-info', role: 'alert' }, error || state.error) : null,

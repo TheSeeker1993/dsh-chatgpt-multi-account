@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0-preview.6
+
+- Added the “For new chats” checkbox to persist account/model/reasoning defaults. Initial selection is the first configured account with GPT‑6.1 Sol / low; clearing the checkbox persistently disables initialization.
+- Apply defaults only on fresh ordinary agent creation, never resume, forks, clear/compact or subagents. No automatic fallback for an unavailable saved account; existing bindings stay intact.
+- Separate metadata domain and authenticated CSRF-protected endpoint; account credentials, busy/lease rules and global deployment defaults remain unchanged.
+- Validation: 165 synthetic tests and both installed-runtime smoke scripts passed; whitespace/packaging checks passed. No real inference or visual verification performed.
+
 ## 0.5.0-preview.5
 
 - Integrated model-aware search in the main bundle: explicitly choose **Settings → Web Search → Auto: ChatGPT / DeepSeek** (`model-aware-search`), or standalone **ChatGPT (session account)** (`chatgpt-session-search`). Loading never selects a provider or changes settings; no administrative setup tool is mounted. Fetch is unchanged.

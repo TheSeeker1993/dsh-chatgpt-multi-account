@@ -2,6 +2,7 @@ import { Accounts, AccountError } from './accounts.js'
 import { createAccountServices } from './auth.js'
 import { installRouting } from './routing.js'
 import { installResetEndpoint } from './reset-host.js'
+import { installChatDefaults } from './defaults-host.js'
 
 const HEADERS = { 'cache-control': 'no-store' }
 export async function installMultiAccount(ctx, config) {
@@ -24,6 +25,7 @@ export async function installMultiAccount(ctx, config) {
   await accounts.initialize()
   services = await createAccountServices(ctx, accounts, config.cacheTtlMs)
   await installRouting(ctx, accounts)
+  await installChatDefaults(ctx, accounts)
   installResetEndpoint(ctx, accounts, { onConsumed: id => services.entry(id).quota.forget() })
   function register(path, handle) {
     ctx.connection.fetch.register({ path, methods: ['GET', 'POST'], requestBody: 'buffered',
