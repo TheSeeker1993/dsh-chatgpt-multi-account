@@ -630,7 +630,7 @@ window.__ModuleLoader__.load({
     function MiniCardOrb({ seed = 0 }) {
       return h('span', { className: 'gl-mini-orb', 'aria-hidden': true, style: { '--gl-orb-phase': '-' + (seed * 7.13).toFixed(2) + 's', '--gl-orb-direction': seed % 2 ? 'reverse' : 'normal' } }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' })))
     }
-    function ResetChoiceCard({ children, disabled, onClick, ...props }) {
+    function ResetChoiceCard({ children, disabled, blocked, onClick, ...props }) {
       const node = React.useRef(null), engine = React.useRef(null)
       React.useEffect(() => {
         const media = matchMedia('(prefers-reduced-motion: reduce)')
@@ -663,7 +663,8 @@ window.__ModuleLoader__.load({
       }, [])
       return h('button', { ...props, ref: node, type:'button', disabled,
         onPointerEnter:()=>{if(!disabled)engine.current?.hot(true)},onPointerLeave:()=>engine.current?.hot(false),
-        onFocus:()=>{if(!disabled)engine.current?.hot(true)},onBlur:()=>engine.current?.hot(false),onClick },children)
+        onFocus:()=>{if(!disabled)engine.current?.hot(true)},onBlur:()=>engine.current?.hot(false),
+         'aria-disabled': blocked || undefined, onClick: event => { if (!blocked && !disabled) onClick?.(event) } },children)
     }
 
     Object.assign(copy.ru, {
@@ -676,6 +677,9 @@ window.__ModuleLoader__.load({
     })
     Object.assign(copy.en, { resetBusyError: 'Account is busy in a running session. Wait for it to finish, then select the reset again.', resetAuthError: 'Account authorization expired or was rejected. Reauthorize in ChatGPT settings.', resetCreditError: 'This reset expired or is no longer available. Refresh using ↻ above.', resetConsentError: 'Confirmation expired or the account changed. Select the reset again.', resetOriginError: 'Blocked by the DSH origin check. Reload the page and report the code if it persists.', resetNetworkError: 'Reset service unavailable or rate limited. Try later.' })
     Object.assign(copy.zh, { resetBusyError: '账号正在被运行中的会话使用，请等待结束后重试。', resetAuthError: '账号授权已过期或被拒绝，请在设置中重新授权。', resetCreditError: '此重置已过期或不可用，请点击上方 ↻ 刷新。', resetConsentError: '确认已过期或账号已更改，请重新选择。', resetOriginError: 'DSH 来源检查已阻止请求，请刷新页面。', resetNetworkError: '重置服务不可用或请求受限，请稍后重试。' })
+    Object.assign(copy.ru, { resetPassword: 'Пароль для сброса', resetPasswordInvalid: 'Неверный пароль. Введите его снова.' })
+    Object.assign(copy.en, { resetPassword: 'Reset password', resetPasswordInvalid: 'Incorrect password. Enter it again.' })
+    Object.assign(copy.zh, { resetPassword: '重置密码', resetPasswordInvalid: '密码错误，请重新输入。' })
     function resetErrorKey(code) {
       if (code === 'ACCOUNT_BUSY' || code === 'LOGIN_IN_PROGRESS') return 'resetBusyError'
       if (['RESET_TOKEN_EXPIRED','RESET_SIGNED_OUT','RESET_AUTH','ACCOUNT_SIGNED_OUT'].includes(code)) return 'resetAuthError'
@@ -685,7 +689,7 @@ window.__ModuleLoader__.load({
       if (['RESET_NETWORK','RESET_THROTTLED','RESET_HTTP','RESET_UNAVAILABLE'].includes(code)) return 'resetNetworkError'
       return 'resetActionError'
     }
-    function ResetMenu({ t, accountId, accountLabel, disabled, onConsumed, onBusyChange, autoOpen = false }) {
+    function ResetMenu({ t, accountId, accountLabel, disabled, selecting, onConsumed, onBusyChange, autoOpen = false }) {
       const [open, setOpen] = React.useState(false)
       const [data, setData] = React.useState(null)
       const [flow, setFlow] = React.useState(null)
@@ -696,6 +700,7 @@ window.__ModuleLoader__.load({
       const cancelButton = React.useRef(null), epoch = React.useRef(0), controller = React.useRef(null)
       const lock = React.useRef(false), armed = React.useRef(false), consuming = React.useRef(false)
       const flowRef = React.useRef(null)
+      const passwordInput = React.useRef(null)
       const cancelNonce = pending => {
         if (pending?.nonce) request('api/chatgpt-resets', { action: 'cancel', accountId: pending.accountId, nonce: pending.nonce }).catch(() => {})
       }
@@ -743,12 +748,17 @@ window.__ModuleLoader__.load({
         if (lock.current || disabled || !open || !accountId) return
         if (action !== 'begin' && !armed.current) return
         if (action === 'advance' && flow?.stage !== 1 || action === 'consume' && flow?.stage !== 2) return
+        const password = action === 'consume' ? passwordInput.current?.value : undefined
+        if (action === 'consume' && !password) {
+          armed.current = false; setMessage('resetPassword'); passwordInput.current?.focus(); return
+        }
+        if (action === 'consume' && passwordInput.current) passwordInput.current.value = ''
         armed.current = false; lock.current = true; setBusy(true); setMessage(''); setErrorCode('')
         const token = ++epoch.current
         const payload = action === 'begin' ? { creditId: credit.id } : { nonce: flow.nonce }
         if (action === 'consume') { consuming.current = true; try { onBusyChange?.(true) } catch (_) {} }
         try {
-          const result = await request('api/chatgpt-resets', { action, accountId, ...payload })
+          const result = await request('api/chatgpt-resets', { action, accountId, ...payload, ...(action === 'consume' ? { password } : {}) })
           if (token !== epoch.current) {
             if (action !== 'consume') cancelNonce({ accountId, nonce: result?.nonce })
             else if (result?.outcome === 'reset') { try { onConsumed?.(accountId, result) } catch (_) {} }
@@ -768,6 +778,11 @@ window.__ModuleLoader__.load({
         } catch (error) {
           if (token === epoch.current) {
             const code = typeof error?.message === 'string' && /^[A-Z_]{1,60}$/.test(error.message) ? error.message : 'RESET_REQUEST_FAILED'
+            if (action === 'consume' && code === 'RESET_PASSWORD_INVALID') {
+              setMessage('resetPasswordInvalid')
+              passwordInput.current?.focus()
+              return
+            }
             setFlow(null); if (action === 'consume') setData(null)
             setErrorCode(code)
             setMessage(action === 'consume' ? 'resetUnknown' : resetErrorKey(code))
@@ -837,6 +852,7 @@ window.__ModuleLoader__.load({
           h('strong', null, tr(flow.stage === 1 ? 'resetStepOne' : 'resetStepTwo')),
           h('p', null, tr(flow.stage === 1 ? 'resetWarningOne' : 'resetWarningTwo', { account: accountLabel || accountId, type: typeText(flow.credit) })),
           h('small', null, tr('resetExpires', { time: stamp(flow.credit.expiresAt) })),
+          flow.stage === 2 ? h('input', { ref: passwordInput, className: 'gl-input', type: 'password', autoComplete: 'off', maxLength: 128, 'aria-label': tr('resetPassword'), placeholder: tr('resetPassword') }) : null,
           h('div', { className: 'reset-actions' },
             button(tr(consuming.current ? 'resetWait' : 'resetCancel'), () => { if (!consuming.current) { invalidate(); setMessage('') } }, { ref: cancelButton, disabled: !open || consuming.current }),
             button(tr(flow.stage === 1 ? 'resetContinue' : 'resetSpend'), () => change(flow.stage === 1 ? 'advance' : 'consume'), {
@@ -847,7 +863,7 @@ window.__ModuleLoader__.load({
              h(ResetChoiceCard, { key: credit.id, className: 'reset-choice-card',
                title: typeText(credit) + '. ' + tr('resetDescription') + ' · ' + tr('resetExpires', { time: stamp(credit.expiresAt) }),
                'aria-label': typeText(credit) + ' · ' + tr('resetExpires', { time: stamp(credit.expiresAt) }),
-               disabled: busy || disabled || !open || credit.resetType !== 'codex_rate_limits' || !!(credit.expiresAt && new Date(credit.expiresAt).getTime() <= Date.now()), onClick: () => change('begin', credit) },
+               blocked: selecting, disabled: busy || (disabled && !selecting) || !open || credit.resetType !== 'codex_rate_limits' || !!(credit.expiresAt && new Date(credit.expiresAt).getTime() <= Date.now()), onClick: () => change('begin', credit) },
                h('span', { className: 'reset-choice-orb', 'aria-hidden': true, style: { '--gl-orb-phase': '-' + (index * 7.13).toFixed(2) + 's', '--gl-orb-direction': index % 2 ? 'reverse' : 'normal' } }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' }))),
                h('strong', null, tr('resetCardTitle')),
                h('span', { className: 'reset-choice-expiry' }, credit.expiresAt ? tr('resetCardExpiry', { time: new Date(credit.expiresAt).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }) : tr('resetNoExpiry')),
@@ -1110,6 +1126,39 @@ window.__ModuleLoader__.load({
     Object.assign(copy.en, { setupTitle: 'Subagent models', setupReady: 'Configured: all 10 ChatGPT models available.', setupNeeded: 'Setup required.', setupAction: 'Set up subagents', setupNewChats: 'Applies only to new chats. Subagents inherit the parent’s selected account.', setupConfirm: 'Enable model selection and add these 10 routes? All other permissions, including openai-codex, remain unchanged. Remove unwanted routes in Subagent settings.', setupSaved: 'Saved. Start a new chat to apply permissions.', setupUnavailable: 'Subagent settings unavailable. Check the official Subagent plugin and refresh status.', setupReadOnly: 'Settings are read-only.', setupConflict: 'Settings changed concurrently. Refresh status and confirm again.', setupFailed: 'Could not save settings. Refresh status and confirm again.' })
     Object.assign(copy.zh, { setupTitle: '子代理模型', setupReady: '已配置：全部 10 个 ChatGPT 模型可用。', setupNeeded: '需要配置。', setupAction: '配置子代理', setupNewChats: '仅适用于新会话。子代理继承父会话选择的账号。', setupConfirm: '启用模型选择并添加这 10 个路由？其他权限（包括 openai-codex）保持不变。可在 Subagent 设置中移除不需要的路由。', setupSaved: '已保存。请新建会话以应用权限。', setupUnavailable: '子代理设置不可用。请检查官方 Subagent 插件并刷新状态。', setupReadOnly: '设置为只读。', setupConflict: '设置已被其他操作修改。请刷新状态并重新确认。', setupFailed: '保存失败。请刷新状态并重新确认。' })
 
+    const resetDisplayKey = 'dsh-chatgpt-multi-account:show-resets'
+    const resetDisplayEvents = new EventTarget()
+    function readResetDisplay() {
+      try { return window.localStorage.getItem(resetDisplayKey) === '1' } catch { return false }
+    }
+    function writeResetDisplay(enabled) {
+      window.localStorage.setItem(resetDisplayKey, enabled ? '1' : '0')
+      resetDisplayEvents.dispatchEvent(new Event('change'))
+    }
+    function subscribeResetDisplay(notify) {
+      const onStorage = event => { if (event.key === resetDisplayKey || event.key === null) notify() }
+      resetDisplayEvents.addEventListener('change', notify)
+      window.addEventListener('storage', onStorage)
+      return () => {
+        resetDisplayEvents.removeEventListener('change', notify)
+        window.removeEventListener('storage', onStorage)
+      }
+    }
+    const useResetDisplay = () => React.useSyncExternalStore(subscribeResetDisplay, readResetDisplay, () => false)
+    Object.assign(copy.ru, { showResets: 'Показывать ручные сбросы лимитов', resetDisplayError: 'Не удалось сохранить настройку отображения.' })
+    Object.assign(copy.en, { showResets: 'Show manual limit resets', resetDisplayError: 'Could not save display preference.' })
+    Object.assign(copy.zh, { showResets: '显示手动额度重置', resetDisplayError: '无法保存显示设置。' })
+    function ResetDisplaySetting({ t }) {
+      const checked = useResetDisplay()
+      const [failed, setFailed] = React.useState(false)
+      return h('div', { className: 'gl-reset-display' },
+        h('style', null, `.gl-reset-display{margin-top:14px}.gl-reset-display label{display:flex;align-items:center;gap:8px;cursor:pointer}.gl-reset-display input{appearance:none;margin:0;width:32px;height:18px;flex:none;border:1px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-layer-1);cursor:pointer}.gl-reset-display input::before{content:'';display:block;width:12px;height:12px;margin:2px;border-radius:50%;background:var(--dsw-alias-label-secondary)}.gl-reset-display input:checked{background:var(--dsw-alias-state-business-primary)}.gl-reset-display input:checked::before{transform:translateX(14px);background:var(--dsw-alias-bg-layer-1)}.gl-reset-display input:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}`),
+        h('label', null, h('input', { type: 'checkbox', role: 'switch', checked, onChange: event => {
+          try { writeResetDisplay(event.target.checked); setFailed(false) } catch { setFailed(true) }
+        } }), h('span', null, text(t, 'showResets'))),
+        failed ? h('p', { role: 'alert' }, text(t, 'resetDisplayError')) : null)
+    }
+
     function GptLinkSection({ t, remote }) {
       const { snapshot, error, pending, refresh, mutate } = useAccounts()
       const [label, setLabel] = React.useState('')
@@ -1127,7 +1176,8 @@ window.__ModuleLoader__.load({
         !snapshot && !error ? h('p', null, text(t, 'loading')) : null,
         snapshot?.accounts.length === 0 ? h('p', { className: 'gl-note' }, text(t, 'emptyAccounts')) : null,
         snapshot?.accounts.map(account => h(AccountPanel, { key: account.id, t, account, pending, mutate })),
-        h(SubagentSetup, { t, remote }))
+        h(SubagentSetup, { t, remote }),
+        h(ResetDisplaySetting, { t }))
     }
 
     function SessionAccountSelector({ t, sessionId, useSession }) {
@@ -1318,7 +1368,11 @@ window.__ModuleLoader__.load({
 
 .gl-compact-tabs{display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:0 12px 8px;flex:none}
 .gl-new-chat-defaults{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11px;color:var(--dsw-alias-label-secondary);cursor:pointer;position:relative}
-.gl-new-chat-defaults input{accent-color:var(--dsw-alias-state-business-primary);margin:0}
+.gl-new-chat-defaults input{appearance:none;box-sizing:border-box;flex:none;width:28px;height:16px;margin:0;padding:2px;border:1px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-layer-1);cursor:inherit}
+.gl-new-chat-defaults input::before{content:'';display:block;width:10px;height:10px;border-radius:50%;background:var(--dsw-alias-label-secondary)}
+.gl-new-chat-defaults input:checked{background:var(--dsw-alias-state-business-primary);border-color:transparent}
+.gl-new-chat-defaults input:checked::before{transform:translateX(12px);background:var(--dsw-alias-bg-layer-1)}
+@media(forced-colors:active){.gl-new-chat-defaults input{appearance:auto}}
 .gl-new-chat-defaults input:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
 .gl-new-chat-defaults:has(input:disabled){opacity:.6;cursor:default}
 .gl-defaults-status{position:absolute;right:0;top:100%;z-index:2;max-width:240px;padding:4px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:4px}
@@ -1408,7 +1462,7 @@ window.__ModuleLoader__.load({
     function FanAccounts({ accounts, previewId, currentId, onPreview, quotaText, compactQuota, quotas, selecting, t, now, resets }) {
       return h('div', { className: 'gl-account-mini-grid', role: 'group', 'aria-label': text(t, 'gptAccountsBlock') },
         accounts.map((account, index) => h(ResetChoiceCard, {
-          key: account.id, className: 'gl-account-mini-card', disabled: selecting,
+          key: account.id, className: 'gl-account-mini-card', blocked: selecting,
           style: { '--gl-account-quota-fill': (account.configured ? accountFill(quotas[account.id]) ?? 0 : 0) + '%' },
           'data-quota-stale': quotas[account.id]?.freshness === 'stale' ? 'true' : undefined,
           'aria-pressed': previewId === account.id, 'data-current': currentId === account.id ? 'true' : undefined,
@@ -1419,12 +1473,12 @@ window.__ModuleLoader__.load({
           h('strong', { className: 'gl-account-mini-name' }, account.label.split('@')[0]),
           h('span', null, account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')),
           h('span', null, account.configured ? accountResetCaption(t, quotas[account.id], now) : '—'),
-          h('span', null, text(t, 'cardResetCount', { n: String(account.configured && Number.isInteger(resets?.[account.id]?.availableCount) ? resets[account.id].availableCount : '—') })),
+          resets ? h('span', null, text(t, 'cardResetCount', { n: String(account.configured && Number.isInteger(resets[account.id]?.availableCount) ? resets[account.id].availableCount : '—') })) : null,
           currentId === account.id ? h('span', { className: 'gl-account-mini-active' }, text(t, 'activeAccount')) : null)))
     }
 
-    Object.assign(copy.ru, { defaultsLabel: 'Для новых чатов', defaultsTitle: 'Сохранить этот аккаунт, текущую модель ChatGPT и уровень рассуждений только для будущих новых чатов', defaultsLoading: 'Загрузка настроек новых чатов…', defaultsError: 'Настройки новых чатов недоступны. Откройте виджет заново.', defaultsUnavailable: 'Выберите доступную модель ChatGPT и настроенный аккаунт.' })
-    Object.assign(copy.en, { defaultsLabel: 'For new chats', defaultsTitle: 'Save this account, current ChatGPT model and reasoning effort for future new chats only', defaultsLoading: 'Loading new chat defaults…', defaultsError: 'New chat defaults unavailable. Reopen the widget.', defaultsUnavailable: 'Select an available ChatGPT model and a configured account.' })
+    Object.assign(copy.ru, { defaultsLabel: 'По умолчанию для новых чатов', defaultsTitle: 'Сохранить этот аккаунт, текущую модель ChatGPT и уровень рассуждений только для будущих новых чатов', defaultsLoading: 'Загрузка настроек новых чатов…', defaultsError: 'Настройки новых чатов недоступны. Откройте виджет заново.', defaultsUnavailable: 'Выберите доступную модель ChatGPT и настроенный аккаунт.' })
+    Object.assign(copy.en, { defaultsLabel: 'New chat defaults', defaultsTitle: 'Save this account, current ChatGPT model and reasoning effort for future new chats only', defaultsLoading: 'Loading new chat defaults…', defaultsError: 'New chat defaults unavailable. Reopen the widget.', defaultsUnavailable: 'Select an available ChatGPT model and a configured account.' })
     Object.assign(copy.zh, { defaultsLabel: '用于新会话', defaultsTitle: '仅为未来新会话保存此账号、当前 ChatGPT 模型和推理强度', defaultsLoading: '正在加载新会话设置…', defaultsError: '新会话设置不可用，请重新打开选择器。', defaultsUnavailable: '请选择可用的 ChatGPT 模型和已配置账号。' })
 
     function newChatCombo(current, nativeModels, account, reasoningEffort, tab) {
@@ -1435,7 +1489,7 @@ window.__ModuleLoader__.load({
     function defaultsMatch(saved, combo) {
       return !!(saved?.enabled && combo && saved.accountId === combo.accountId && saved.model === combo.model && saved.reasoningEffort === combo.reasoningEffort)
     }
-    function NewChatDefaults({ open, combo, disabled, t }) {
+    function NewChatDefaults({ open, combo, disabled, selecting, t }) {
       const [saved, setSaved] = React.useState(null)
       const [loading, setLoading] = React.useState(false)
       const [busy, setBusy] = React.useState(false)
@@ -1461,7 +1515,7 @@ window.__ModuleLoader__.load({
       const unavailable = !saved || !combo
       const change = async () => {
         const op = operation.current
-        if (!open || disabled || loading || failed || unavailable || op.locked) return
+        if (!open || disabled || selecting || loading || failed || unavailable || op.locked) return
         op.locked = true; setBusy(true); setFailed(false)
         const epoch = op.epoch, signal = op.controller.signal
         try {
@@ -1475,7 +1529,7 @@ window.__ModuleLoader__.load({
       }
       const status = failed ? 'defaultsError' : loading ? 'defaultsLoading' : unavailable ? 'defaultsUnavailable' : 'defaultsTitle'
       return h('label', { className: 'gl-new-chat-defaults', title: text(t, status) },
-        h('input', { type: 'checkbox', checked, disabled: !open || disabled || loading || busy || failed || unavailable, onChange: change, 'aria-busy': loading || busy }),
+        h('input', { type: 'checkbox', role: 'switch', checked, disabled: !open || disabled || loading || busy || failed || unavailable, 'aria-disabled': selecting || undefined, onChange: change, 'aria-busy': loading || busy }),
         h('span', null, text(t, 'defaultsLabel')),
         failed || loading ? h('span', { className: 'gl-defaults-status', role: failed ? 'alert' : 'status' }, text(t, status)) : null)
     }
@@ -1515,9 +1569,9 @@ window.__ModuleLoader__.load({
       const [open, setOpen] = React.useState(false)
       const [query, setQuery] = React.useState('')
       const [quotas, setQuotas] = React.useState({})
+      const showResets = useResetDisplay()
       const [resets, setResets] = React.useState({})
-      const [quotaPending, setQuotaPending] = React.useState({})
-      const quotaRequests = React.useRef(new Set())
+      const quotaRequests = React.useRef(new Map())
       const [now, setNow] = React.useState(Date.now())
       React.useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer) }, [])
       const [error, setError] = React.useState('')
@@ -1540,18 +1594,22 @@ window.__ModuleLoader__.load({
       const quotaText = card => !card || !card.windows?.length ? text(t, 'pickerUnknown') : card.windows.map(w => windowLabel(t, w) + ': ' + (Number.isFinite(w.usedPercent) ? text(t, 'remaining', { n: String(Math.round(Math.max(0, Math.min(100, 100 - w.usedPercent)))) }) : text(t, 'pickerUnknown'))).join(' · ') + (card.freshness === 'stale' ? ' ≈' : '')
       const loadQuota = React.useCallback(async (ids, force = false, signal) => {
         await Promise.all(ids.map(async id => {
-          if (quotaRequests.current.has(id)) return
-          quotaRequests.current.add(id)
-          setQuotaPending(old => ({ ...old, [id]: true }))
-          try {
-            const card = await request('api/chatgpt-quota?accountId=' + encodeURIComponent(id), force ? {} : undefined, signal)
-            if (!signal?.aborted) setQuotas(old => ({ ...old, [id]: card }))
-          } catch {
-            if (!signal?.aborted) setQuotas(old => old[id] ? { ...old, [id]: { ...old[id], freshness: 'stale' } } : old)
-          } finally {
-            quotaRequests.current.delete(id)
-            setQuotaPending(old => ({ ...old, [id]: false }))
-          }
+          const previous = quotaRequests.current.get(id)
+          if (previous && !previous.signal?.aborted && (!force || previous.force)) return previous.done
+          const pending = { signal, force }
+          quotaRequests.current.set(id, pending)
+          const isCurrent = () => !signal?.aborted && quotaRequests.current.get(id) === pending
+          pending.done = (async () => {
+            try {
+              const card = await request('api/chatgpt-quota?accountId=' + encodeURIComponent(id), force ? {} : undefined, signal)
+              if (isCurrent()) setQuotas(old => ({ ...old, [id]: card }))
+            } catch {
+              if (isCurrent()) setQuotas(old => old[id] ? { ...old, [id]: { ...old[id], freshness: 'stale' } } : old)
+            } finally {
+              if (quotaRequests.current.get(id) === pending) quotaRequests.current.delete(id)
+            }
+          })()
+          return pending.done
         }))
       }, [])
       const loadResets = React.useCallback(async (ids, force = false, signal) => {
@@ -1563,14 +1621,14 @@ window.__ModuleLoader__.load({
         }))
       }, [])
       React.useEffect(() => {
-        if (!open) return
+        if (!open || !showResets) return
         const controller = new AbortController()
         const ids = accounts.filter(a => a.configured).map(a => a.id)
         if (ids.length) void loadResets(ids, false, controller.signal)
         const timer = setInterval(() => { if (ids.length) void loadResets(ids, false, controller.signal) }, 60000)
         return () => { controller.abort(); clearInterval(timer) }
-      }, [open, accounts.map(a => a.id + a.configured).join(','), loadResets])
-      React.useEffect(() => { if (!unavailable) void directory.load().catch(e => setError(e.message)) }, [directory, unavailable, open])
+      }, [open, showResets, accounts.map(a => a.id + a.configured).join(','), loadResets])
+      React.useEffect(() => { if (!unavailable) void directory.load().catch(e => setError(e.message)) }, [directory, unavailable])
       React.useEffect(() => {
         const controller = new AbortController()
         const ids = (open ? accounts.filter(a => a.configured).map(a => a.id) : selectedId ? [selectedId] : [])
@@ -1631,12 +1689,11 @@ window.__ModuleLoader__.load({
             await request('api/chatgpt-accounts', { action: 'select', sessionId, accountId: account.id })
             changedAccount = true; accountsChanged(); await refresh()
           }
-          const key = provider + '/' + model.id
           const preferredEffort = displayedEffort
           const effort = model.reasoning?.efforts?.some(level => level.id === preferredEffort) ? preferredEffort : model.reasoning?.defaultEffort
           const result = await directory.select({ provider, model: model.id, ...(effort ? { reasoningEffort: effort } : {}) })
           if (!result.ok) throw new Error(result.error?.message ?? 'Selection failed')
-          setOpen(false); trigger.current?.focus()
+          setCommonEffort(null)
         } catch (e) {
           setError((changedAccount ? text(t, 'pickerPartial') + ' ' : '') + (e.message ?? 'Selection failed'))
         } finally { inFlight.current = false; setSelecting(false) }
@@ -1649,6 +1706,22 @@ window.__ModuleLoader__.load({
       const models = tab === 'gpt' ? filterAvailableModels(nativeModels, availableModelIds, previewIsCurrent ? state.current?.model : null) : previewGroup?.models ?? []
       const levels = [...new Map(models.flatMap(m => m.reasoning?.efforts ?? []).map(level => [level.id, level])).values()]
       const displayedEffort = commonEffort ?? (previewIsCurrent ? state.current?.reasoningEffort : undefined) ?? models[0]?.reasoning?.defaultEffort
+      const changeEffort = async effort => {
+        if (busy || resetBusy || inFlight.current) return
+        // Another account/provider is only a preview until a model is chosen.
+        if (!previewIsCurrent || !currentModel?.reasoning?.efforts?.some(level => level.id === effort)) {
+          setCommonEffort(effort)
+          return
+        }
+        inFlight.current = true; setSelecting(true); setError('')
+        try {
+          const result = await directory.select({ provider: state.current.provider, model: currentModel.id, reasoningEffort: effort })
+          if (!result.ok) throw new Error(result.error?.message ?? 'Selection failed')
+          setCommonEffort(null)
+        } catch (e) {
+          setError(e.message ?? 'Selection failed')
+        } finally { inFlight.current = false; setSelecting(false) }
+      }
       const visibleModels = models.filter(m => m.name.toLowerCase().includes(query.trim().toLowerCase()))
       const compactQuota = card => {
         const remaining = accountFill(card)
@@ -1665,17 +1738,17 @@ window.__ModuleLoader__.load({
       if (unavailable) return null
       return h(React.Fragment, null,
         h('style', null, css + pickerCss),
-        h('button', { ref: trigger, type: 'button', className: 'gl-picker-trigger', title: triggerLabel, onClick: () => { setQuery(''); setTab(state.current?.provider === 'chatgpt-session' ? 'gpt' : 'other'); setPreviewId(selectedId ?? null); setOtherProvider(state.current?.provider ?? null); setCommonEffort(null); if (!resetBusy && !inFlight.current) setOpen(value => !value) }, disabled: !!locked || resetBusy, 'aria-haspopup': 'dialog', 'aria-expanded': open },
+        h('button', { ref: trigger, type: 'button', className: 'gl-picker-trigger', title: triggerLabel, onClick: () => { if (resetBusy || inFlight.current) return; if (open) { close(); return } setQuery(''); setTab(state.current?.provider === 'chatgpt-session' || !state.current?.provider ? 'gpt' : 'other'); setPreviewId(selectedId ?? null); setOtherProvider(state.current?.provider ?? null); setCommonEffort(null); setOpen(true) }, disabled: !!locked || resetBusy, 'aria-haspopup': 'dialog', 'aria-expanded': open },
           h('span', null, triggerLabel), state.current?.provider === 'chatgpt-session' && selectedId ? h('small', { className: 'gl-picker-quota', title: quotaText(quotas[selectedId]) + ' · ' + triggerQuotaText(quotas[selectedId]) }, triggerQuotaText(quotas[selectedId])) : null, ' ▾'),
         h('dialog', { ref: dialog, popover: 'manual', tabIndex: -1, className: 'gl-picker-dialog gl-picker-widget', 'aria-modal': false, 'aria-label': text(t, 'pickerTitle'), onCancel: e => { e.preventDefault(); close() }, onClick: e => { if (e.target === dialog.current) close() } },
           h('div', { className: 'gl-picker-shell' },
             h('header', { className: 'gl-picker-head' }, h('strong', null, text(t, 'pickerTitle')),
               h('time', { className: 'gl-header-updated', title: text(t, 'updatedAt', { time: new Date(Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0))).toLocaleString() }) },
-                refreshingAll ? '…' : Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0)) > 0 ? new Date(Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0))).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' }) + ' · ' + clockTime(Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0))) : '—'),
+                Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0)) > 0 ? new Date(Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0))).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' }) + ' · ' + clockTime(Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0))) : '—'),
               h('button', { type: 'button', className: 'gl-icon', 'aria-label': text(t, 'pickerRefresh'), 'aria-busy': refreshingAll, 'data-spin': refreshingAll ? 'true' : undefined, disabled: selecting || resetBusy || refreshingAll, onClick: async () => {
                 if(refreshAllLock.current)return
                 refreshAllLock.current=true;setRefreshingAll(true)
-                try { const ids=accounts.filter(a=>a.configured).map(a=>a.id); await Promise.all([directory.load().catch(e=>setError(e.message)),refresh(),loadQuota(ids,true),loadResets(ids,true)]) }
+                try { const ids=accounts.filter(a=>a.configured).map(a=>a.id); await Promise.all([directory.load().catch(e=>setError(e.message)),refresh(),loadQuota(ids,true),showResets ? loadResets(ids,true) : undefined]) }
                 finally {refreshAllLock.current=false;setRefreshingAll(false)}
               } }, RefreshIcon),
               h('button', { type: 'button', className: 'gl-icon', 'aria-label': text(t, 'pickerClose'), disabled: selecting || resetBusy, onClick: close }, '×')),
@@ -1683,23 +1756,23 @@ window.__ModuleLoader__.load({
             h('div', { className: 'gl-compact-tabs', role: 'group', 'aria-label': text(t, 'pickerTitle') },
               h('button', { type: 'button', 'aria-pressed': tab === 'gpt', disabled: resetBusy, onClick: () => { setTab('gpt'); setQuery(''); setCommonEffort(null) } }, 'ChatGPT'),
               h('button', { type: 'button', 'aria-pressed': tab === 'other', disabled: resetBusy, onClick: () => { setTab('other'); setQuery(''); setCommonEffort(null) } }, text(t, 'pickerTabOther')),
-              h(NewChatDefaults, { open, combo: newChatCombo(state.current, nativeModels, previewAccount, displayedEffort, tab), disabled: !!locked || selecting, t })),
+              h(NewChatDefaults, { open, combo: newChatCombo(state.current, nativeModels, previewAccount, displayedEffort, tab), disabled: !!locked, selecting, t })),
             busy ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'pickerBusy')) : null,
             accountError ? h('p', { className: 'gl-picker-info', role: 'alert' }, accountError) : !snapshot ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'loading')) : !accounts.length ? h('p', { className: 'gl-picker-info' }, text(t, 'pickerEmptyAccounts')) : null,
             error || state.error ? h('p', { className: 'gl-picker-info', role: 'alert' }, error || state.error) : null,
             h('div', { className: 'gl-picker-list' },
               tab === 'gpt' ? h(React.Fragment, null,
                 h(FanAccounts, { accounts, previewId: previewAccount?.id, currentId: state.current?.provider === 'chatgpt-session' ? selectedId : null,
-                  onPreview: id => { setPreviewId(id); setQuery('') }, quotaText, compactQuota, quotas, selecting: selecting || resetBusy, t, orbLink, now, resets }),
-                 previewAccount?.configured ? h(ResetMenu, { key: previewAccount.id, t, accountId: previewAccount.id, accountLabel: previewAccount.label, autoOpen: true, disabled: resetUnavailable || selecting, onBusyChange: setResetBusy, onConsumed: id => { void loadQuota([id], true); void loadResets([id], true) } }) : null)
+                  onPreview: id => { setPreviewId(id); setQuery('') }, quotaText, compactQuota, quotas, selecting: selecting || resetBusy, t, orbLink, now, resets: showResets ? resets : null }),
+                 (showResets || resetBusy) && previewAccount?.configured ? h(ResetMenu, { key: previewAccount.id, t, accountId: previewAccount.id, accountLabel: previewAccount.label, autoOpen: true, selecting, disabled: resetUnavailable || selecting, onBusyChange: setResetBusy, onConsumed: id => { void loadQuota([id], true); void loadResets([id], true) } }) : null)
                 : h('select', { className: 'gl-input gl-compact-provider', value: previewGroup?.id ?? '', 'aria-label': text(t, 'otherProvidersBlock'), onChange: e => { setOtherProvider(e.target.value); setCommonEffort(null); setQuery('') } }, otherGroups.map(g => h('option', { value: g.id, key: g.id }, g.name))),
               levels.length ? h('div', { className: 'gl-efforts', role: 'group', 'aria-label': text(t, 'pickerReasoning') },
-                levels.map((level, index) => h(ResetChoiceCard, { className: 'gl-effort-button', type: 'button', key: level.id, disabled: busy || selecting || resetBusy, 'aria-pressed': displayedEffort === level.id, onClick: () => setCommonEffort(level.id) }, h(MiniCardOrb, { seed: index + 1 }), h('span', { className: 'gl-mini-label' }, level.name ?? level.id)))) : null,
+                levels.map((level, index) => h(ResetChoiceCard, { className: 'gl-effort-button', type: 'button', key: level.id, blocked: selecting, disabled: !selecting && (busy || resetBusy), 'aria-pressed': displayedEffort === level.id, onClick: () => void changeEffort(level.id) }, h(MiniCardOrb, { seed: index + 1 }), h('span', { className: 'gl-mini-label' }, level.id)))) : null,
               h('div', { className: 'gl-model-grid' }, visibleModels.map(model => {
                 const active = previewIsCurrent && state.current?.model === model.id
                 const unsupportedEffort = !!model.reasoning?.efforts?.length && !!displayedEffort && !model.reasoning.efforts.some(level => level.id === displayedEffort)
                 return h(ResetChoiceCard, { type: 'button', className: 'gl-model-cell', key: model.id, 'aria-pressed': active,
-                  disabled: busy || selecting || resetBusy || unsupportedEffort || (tab === 'gpt' && !previewAccount?.configured),
+                  blocked: selecting, disabled: !selecting && (busy || resetBusy || unsupportedEffort || (tab === 'gpt' && !previewAccount?.configured)),
                   title: model.name + ' · ' + (displayedEffort ?? ''), onClick: () => void choose(tab === 'gpt' ? previewAccount : null, provider, model) },
                   h(MiniCardOrb, { seed: visibleModels.indexOf(model) + 5 }), h('span', { className: 'gl-mini-label' }, model.name))
               })),

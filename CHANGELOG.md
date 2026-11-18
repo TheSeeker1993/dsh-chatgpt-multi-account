@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0-preview.9
+
+- Keep the picker open after selecting a model, save supported reasoning levels immediately, and show the original level IDs.
+- Reduce flicker during selection and refresh; use a compact switch for new-chat defaults.
+- Hide manual limit resets by default behind a display switch. Require a fixed confirmation phrase at the second step; it is not an authentication secret.
+
 ## 0.5.0-preview.8
 
 - Added GPT‑6.2 Sol, GPT‑6.2 Astra, and GPT‑6.1 Terra to the existing picker when listed by the selected account’s Codex catalog. No new buttons or panels.
