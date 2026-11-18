@@ -1036,7 +1036,7 @@ window.__ModuleLoader__.load({
               h('button', { className: 'gl-btn', type: 'button', disabled: pending, onClick: () => setConfirming(false) }, text(t, 'cancel')))) : null))
     }
 
-    const SUBAGENT_MODELS = Object.freeze(['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'])
+    const SUBAGENT_MODELS = Object.freeze(['gpt-6.2-sol', 'gpt-6.2-astra', 'gpt-6.1-terra', 'gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'])
     const SUBAGENT_SETTINGS = 'subagent-model-selection-settings'
     async function readSubagentSettings(remote) {
       const result = await remote.settings.describe()
@@ -1106,9 +1106,9 @@ window.__ModuleLoader__.load({
             h('button', { className: 'gl-btn', type: 'button', disabled: busy || !state?.writable || state.configured, onClick: () => { setSaved(false); setConfirming(true) } }, text(t, 'setupAction')),
             h('button', { className: 'gl-btn', type: 'button', disabled: busy, onClick: load }, text(t, 'refresh'))))
     }
-    Object.assign(copy.ru, { setupTitle: 'Модели субагентов', setupReady: 'Настроено: доступны все 7 моделей ChatGPT.', setupNeeded: 'Требуется настройка.', setupAction: 'Настроить субагентов', setupNewChats: 'Применяется только к новым чатам. Субагенты наследуют выбранный аккаунт родителя.', setupConfirm: 'Включить выбор моделей и добавить эти 7 маршрутов? Остальные разрешения, включая openai-codex, сохранятся. Убрать ненужные маршруты можно в настройках Subagent.', setupSaved: 'Сохранено. Создайте новый чат, чтобы применить разрешения.', setupUnavailable: 'Настройки субагентов недоступны. Проверьте официальный плагин Subagent и обновите статус.', setupReadOnly: 'Настройки доступны только для чтения.', setupConflict: 'Настройки изменились параллельно. Обновите статус и подтвердите ещё раз.', setupFailed: 'Не удалось сохранить настройки. Обновите статус и повторите подтверждение.' })
-    Object.assign(copy.en, { setupTitle: 'Subagent models', setupReady: 'Configured: all 7 ChatGPT models available.', setupNeeded: 'Setup required.', setupAction: 'Set up subagents', setupNewChats: 'Applies only to new chats. Subagents inherit the parent’s selected account.', setupConfirm: 'Enable model selection and add these 7 routes? All other permissions, including openai-codex, remain unchanged. Remove unwanted routes in Subagent settings.', setupSaved: 'Saved. Start a new chat to apply permissions.', setupUnavailable: 'Subagent settings unavailable. Check the official Subagent plugin and refresh status.', setupReadOnly: 'Settings are read-only.', setupConflict: 'Settings changed concurrently. Refresh status and confirm again.', setupFailed: 'Could not save settings. Refresh status and confirm again.' })
-    Object.assign(copy.zh, { setupTitle: '子代理模型', setupReady: '已配置：全部 7 个 ChatGPT 模型可用。', setupNeeded: '需要配置。', setupAction: '配置子代理', setupNewChats: '仅适用于新会话。子代理继承父会话选择的账号。', setupConfirm: '启用模型选择并添加这 7 个路由？其他权限（包括 openai-codex）保持不变。可在 Subagent 设置中移除不需要的路由。', setupSaved: '已保存。请新建会话以应用权限。', setupUnavailable: '子代理设置不可用。请检查官方 Subagent 插件并刷新状态。', setupReadOnly: '设置为只读。', setupConflict: '设置已被其他操作修改。请刷新状态并重新确认。', setupFailed: '保存失败。请刷新状态并重新确认。' })
+    Object.assign(copy.ru, { setupTitle: 'Модели субагентов', setupReady: 'Настроено: доступны все 10 моделей ChatGPT.', setupNeeded: 'Требуется настройка.', setupAction: 'Настроить субагентов', setupNewChats: 'Применяется только к новым чатам. Субагенты наследуют выбранный аккаунт родителя.', setupConfirm: 'Включить выбор моделей и добавить эти 10 маршрутов? Остальные разрешения, включая openai-codex, сохранятся. Убрать ненужные маршруты можно в настройках Subagent.', setupSaved: 'Сохранено. Создайте новый чат, чтобы применить разрешения.', setupUnavailable: 'Настройки субагентов недоступны. Проверьте официальный плагин Subagent и обновите статус.', setupReadOnly: 'Настройки доступны только для чтения.', setupConflict: 'Настройки изменились параллельно. Обновите статус и подтвердите ещё раз.', setupFailed: 'Не удалось сохранить настройки. Обновите статус и повторите подтверждение.' })
+    Object.assign(copy.en, { setupTitle: 'Subagent models', setupReady: 'Configured: all 10 ChatGPT models available.', setupNeeded: 'Setup required.', setupAction: 'Set up subagents', setupNewChats: 'Applies only to new chats. Subagents inherit the parent’s selected account.', setupConfirm: 'Enable model selection and add these 10 routes? All other permissions, including openai-codex, remain unchanged. Remove unwanted routes in Subagent settings.', setupSaved: 'Saved. Start a new chat to apply permissions.', setupUnavailable: 'Subagent settings unavailable. Check the official Subagent plugin and refresh status.', setupReadOnly: 'Settings are read-only.', setupConflict: 'Settings changed concurrently. Refresh status and confirm again.', setupFailed: 'Could not save settings. Refresh status and confirm again.' })
+    Object.assign(copy.zh, { setupTitle: '子代理模型', setupReady: '已配置：全部 10 个 ChatGPT 模型可用。', setupNeeded: '需要配置。', setupAction: '配置子代理', setupNewChats: '仅适用于新会话。子代理继承父会话选择的账号。', setupConfirm: '启用模型选择并添加这 10 个路由？其他权限（包括 openai-codex）保持不变。可在 Subagent 设置中移除不需要的路由。', setupSaved: '已保存。请新建会话以应用权限。', setupUnavailable: '子代理设置不可用。请检查官方 Subagent 插件并刷新状态。', setupReadOnly: '设置为只读。', setupConflict: '设置已被其他操作修改。请刷新状态并重新确认。', setupFailed: '保存失败。请刷新状态并重新确认。' })
 
     function GptLinkSection({ t, remote }) {
       const { snapshot, error, pending, refresh, mutate } = useAccounts()
@@ -1480,6 +1480,29 @@ window.__ModuleLoader__.load({
         failed || loading ? h('span', { className: 'gl-defaults-status', role: failed ? 'alert' : 'status' }, text(t, status)) : null)
     }
 
+    const availabilityExtensions = new Set(['gpt-6.2-sol', 'gpt-6.2-astra', 'gpt-6.1-terra'])
+    function filterAvailableModels(models, available, currentModel) {
+      return models.filter(model => !availabilityExtensions.has(model.id) || available.has(model.id) || model.id === currentModel)
+    }
+    function useAvailableModelIds(enabled, accountId, configured) {
+      const cache = React.useRef(new Map())
+      const [, update] = React.useState(0)
+      React.useEffect(() => {
+        if (!enabled || !accountId || !configured) return
+        const previous = cache.current.get(accountId)
+        if (previous && Date.now() - previous.checkedAt < 300000) return
+        const controller = new AbortController()
+        request('api/chatgpt-catalog-report?accountId=' + encodeURIComponent(accountId), undefined, controller.signal).then(report => {
+          if (controller.signal.aborted || report?.error || !Number.isFinite(report?.checkedAt) || !Array.isArray(report?.models) ||
+            !report.models.every(row => row && typeof row.id === 'string' && (row.visibility === null || typeof row.visibility === 'string'))) return
+          cache.current.set(accountId, { checkedAt: Date.now(), ids: new Set(report.models.filter(row => row.visibility === 'list').map(row => row.id)) })
+          update(value => value + 1)
+        }).catch(() => {})
+        return () => controller.abort()
+      }, [enabled, accountId, configured])
+      return cache.current.get(accountId)?.ids ?? new Set()
+    }
+
     function UnifiedPicker({ t, sessionId, useSession, directory, locked }) {
       const state = React.useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot, directory.store.getSnapshot)
       const { snapshot, refresh, error: accountError } = useAccounts(sessionId)
@@ -1510,6 +1533,8 @@ window.__ModuleLoader__.load({
       const selectedId = snapshot?.sessionAccountId
       const accounts = snapshot?.accounts ?? []
       const selectedAccount = accounts.find(a => a.id === selectedId)
+      const previewAccount = accounts.find(a => a.id === previewId) ?? selectedAccount ?? accounts[0]
+      const availableModelIds = useAvailableModelIds(open && tab === 'gpt', previewAccount?.id, previewAccount?.configured)
       const group = state.groups.find(g => g.id === state.current?.provider)
       const currentModel = group?.models.find(m => m.id === state.current?.model)
       const quotaText = card => !card || !card.windows?.length ? text(t, 'pickerUnknown') : card.windows.map(w => windowLabel(t, w) + ': ' + (Number.isFinite(w.usedPercent) ? text(t, 'remaining', { n: String(Math.round(Math.max(0, Math.min(100, 100 - w.usedPercent)))) }) : text(t, 'pickerUnknown'))).join(' · ') + (card.freshness === 'stale' ? ' ≈' : '')
@@ -1545,7 +1570,7 @@ window.__ModuleLoader__.load({
         const timer = setInterval(() => { if (ids.length) void loadResets(ids, false, controller.signal) }, 60000)
         return () => { controller.abort(); clearInterval(timer) }
       }, [open, accounts.map(a => a.id + a.configured).join(','), loadResets])
-      React.useEffect(() => { if (!unavailable) void directory.load().catch(e => setError(e.message)) }, [directory, unavailable])
+      React.useEffect(() => { if (!unavailable) void directory.load().catch(e => setError(e.message)) }, [directory, unavailable, open])
       React.useEffect(() => {
         const controller = new AbortController()
         const ids = (open ? accounts.filter(a => a.configured).map(a => a.id) : selectedId ? [selectedId] : [])
@@ -1618,11 +1643,10 @@ window.__ModuleLoader__.load({
       }
       const nativeModels = state.groups.find(g => g.id === 'chatgpt-session')?.models ?? []
       const otherGroups = state.groups.filter(g => g.id !== 'chatgpt-session')
-      const previewAccount = accounts.find(a => a.id === previewId) ?? selectedAccount ?? accounts[0]
       const previewGroup = otherGroups.find(g => g.id === otherProvider) ?? otherGroups.find(g => g.id === state.current?.provider) ?? otherGroups[0]
       const provider = tab === 'gpt' ? 'chatgpt-session' : previewGroup?.id
-      const models = tab === 'gpt' ? nativeModels : previewGroup?.models ?? []
       const previewIsCurrent = tab === 'gpt' ? state.current?.provider === 'chatgpt-session' && previewAccount?.id === selectedId : state.current?.provider === provider
+      const models = tab === 'gpt' ? filterAvailableModels(nativeModels, availableModelIds, previewIsCurrent ? state.current?.model : null) : previewGroup?.models ?? []
       const levels = [...new Map(models.flatMap(m => m.reasoning?.efforts ?? []).map(level => [level.id, level])).values()]
       const displayedEffort = commonEffort ?? (previewIsCurrent ? state.current?.reasoningEffort : undefined) ?? models[0]?.reasoning?.defaultEffort
       const visibleModels = models.filter(m => m.name.toLowerCase().includes(query.trim().toLowerCase()))

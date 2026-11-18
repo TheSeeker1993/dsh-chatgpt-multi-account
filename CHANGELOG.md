@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0-preview.8
+
+- Added GPT‑6.2 Sol, GPT‑6.2 Astra, and GPT‑6.1 Terra to the existing picker when listed by the selected account’s Codex catalog. No new buttons or panels.
+- Catalog failures do not disable the seven existing models or interrupt current chats. The catalog refresh does not start generation or change saved selections.
+- GPT‑6.2 Sol was verified in a live chat. Astra and Terra were confirmed in the account catalog; their generation was not tested live.
+
 ## 0.5.0-preview.6
 
 - Added the “For new chats” checkbox to persist account/model/reasoning defaults. Initial selection is the first configured account with GPT‑6.1 Sol / low; clearing the checkbox persistently disables initialization.

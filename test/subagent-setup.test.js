@@ -70,7 +70,7 @@ function setupView(remote) {
 const settle = () => new Promise(resolve => setImmediate(resolve))
 
 const namespace = 'subagent-model-selection-settings'
-const models = ['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']
+const models = ['gpt-6.2-sol', 'gpt-6.2-astra', 'gpt-6.1-terra', 'gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']
 const routes = () => models.map(model => ({ provider: 'chatgpt-session', model }))
 const descriptor = (allowedModels = [], enabled = false, revision = 3) => ({ ns: namespace, revision, value: { enabled, allowedModels } })
 const described = (entry = descriptor(), writable = true) => ({ ok: true, value: { writable, namespaces: [entry] } })

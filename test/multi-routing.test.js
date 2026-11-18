@@ -104,7 +104,7 @@ test('catalog/prepare metadata exposes outer route without account lookup', asyn
 test('common profile narrows catalog and provides immutable effort overrides', () => {
   const native = { getModels: () => MODEL_IDS.map(id => ({ id, provider: 'openai-codex', reasoning: true })) }
   const profile = commonProfiles(native, () => ({})).get('openai-codex')
-  assert.equal(profile.piProvider.getModels().length, 7)
+  assert.equal(profile.piProvider.getModels().length, MODEL_IDS.length)
   assert.equal(profile.piProvider.getModels()[0].thinkingLevelMap.minimal, null)
   assert.equal(profile.piProvider.getModels()[0].thinkingLevelMap.xhigh, 'xhigh')
   assert.ok(Object.isFrozen(profile))

@@ -24,6 +24,13 @@ auth.json
 tmp/
 scratch/
 
+# Local sanitized catalog diagnostics (never publish machine reports)
+catalog-report.local.json
+model-probe.local.json
+model-probe.once.local.json
+model-probe.request.local.json
+model-probe.remaining.once.local.json
+
 # Logs
 *.log
 npm-debug.log*

@@ -1,9 +1,35 @@
 export const SESSION_PROVIDER = 'chatgpt-session'
 const NATIVE_PROVIDER = 'openai-codex'
 export const MODEL_IDS = Object.freeze([
+  'gpt-6.2-sol', 'gpt-6.2-astra', 'gpt-6.1-terra',
   'gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna',
   'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
 ])
+
+// Finite catalog extension, not arbitrary model aliases. Contexts were observed in
+// the account's Codex catalog; output limits/API reference prices come from
+// https://developers.openai.com/api/docs/models/{model-id}.md (2026-11-18).
+// API prices are estimates for accounting, not the cost of ChatGPT OAuth quota.
+const MODEL_EXTENSIONS = Object.freeze({
+  'gpt-6.2-sol': Object.freeze({ name: 'GPT-6.2 Sol', contextWindow: 500000, input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 }),
+  'gpt-6.2-astra': Object.freeze({ name: 'GPT-6.2 Astra', contextWindow: 272000, input: 8, output: 40, cacheRead: 0.4, cacheWrite: 10 }),
+  'gpt-6.1-terra': Object.freeze({ name: 'GPT-6.1 Terra', contextWindow: 500000, input: 1, output: 5, cacheRead: 0.05, cacheWrite: 1.25 }),
+})
+
+function extensionModel(catalog, id) {
+  const extension = MODEL_EXTENSIONS[id]
+  const template = extension && catalog.find(model => model.id === 'gpt-6.1-sol')
+  if (!template) return undefined
+  const { name, contextWindow, input, output, cacheRead, cacheWrite } = extension
+  return {
+    ...template, id, name, contextWindow, maxTokens: 128000,
+    input: Object.freeze(['text', 'image']),
+    cost: Object.freeze({ input, output, cacheRead, cacheWrite,
+      tiers: Object.freeze([Object.freeze({ inputTokensAbove: 272000,
+        input: input * 2, output: output * 1.5, cacheRead: cacheRead * 2, cacheWrite: cacheWrite * 2 })]),
+    }),
+  }
+}
 
 function failure(code, message) {
   return Object.assign(new Error(message), { code })
@@ -33,7 +59,7 @@ function nativeRequest(options, accountId) {
 export function commonProfiles(nativeProvider, resolveRetryPolicy) {
   const catalog = nativeProvider.getModels()
   const models = Object.freeze(MODEL_IDS.map(id => {
-    const found = catalog.find(model => model.id === id)
+    const found = catalog.find(model => model.id === id) ?? extensionModel(catalog, id)
     if (!found) throw failure('UNKNOWN_MODEL', `Bundled Codex catalog lacks required model ${id}`)
     return Object.freeze({
       ...found,

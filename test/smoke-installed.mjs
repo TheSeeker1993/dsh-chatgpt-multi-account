@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'
 import { createChatGPTSearchProvider, installChatGPTSearch } from '../search/provider.js'
 import { installAutomaticSearch } from '../search/auto.js'
+import { smokeModelProbe } from './smoke-model-probe.mjs'
 assert.ok(process.versions.electron)
 const require=createRequire(join(process.env.DSH_INSTALL_DIR,'package.json'))
 const installed=async name=>{
@@ -72,6 +73,7 @@ try{
  await assert.rejects(auto.provider.search({query:'synthetic'}),{code:'SEARCH_INITIATOR_REQUIRED'})
  const {createModels}=await installed('@earendil-works/pi-ai');const {openaiCodexProvider}=await installed('@earendil-works/pi-ai/providers/openai-codex');const m=createModels({credentials:{read:async()=>undefined},authContext:{env:async()=>undefined,fileExists:async()=>false}});m.setProvider(openaiCodexProvider());assert.ok(m.getModel('openai-codex','gpt-6.1-sol'))
  await refreshQuiescence(createModels,openaiCodexProvider)
+ await smokeModelProbe({createModels,openaiCodexProvider})
  assert.equal(networkStarted,false)
  console.log(JSON.stringify({ok:true,electron:process.versions.electron,providers:registrations.map(x=>x.id),nativeDeepSeekApply:true,nativeReadyNoCredential:false,nativeGPTModel:true,nativeRefreshQuiescence:true,profileSecretsRead:false,networkStarted:false}))
 }finally{for(const dispose of effects.reverse())await dispose?.()}

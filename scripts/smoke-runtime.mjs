@@ -5,6 +5,7 @@ import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { apply } from '../index.js'
+import { checkFetchBridge } from './check-fetch-bridge.mjs'
 const require = createRequire(join(process.env.DSH_INSTALL_DIR, 'package.json'))
 async function runtimeImport(name) {
   if (name.startsWith('@earendil-works/pi-ai')) {
@@ -13,7 +14,7 @@ async function runtimeImport(name) {
   }
   return import(pathToFileURL(require.resolve(name)).href)
 }
-const routes = new Map(), effects = [], records = new Map(), flows = new Map()
+const routes = new Map(), routeSpecs = new Map(), effects = [], records = new Map(), flows = new Map()
 const tables = new Map(), listeners = new Map(), searchProviders = new Map(), injections = []
 let adapter
 const ctx = {
@@ -46,16 +47,25 @@ const ctx = {
     describe(key) { return flows.get(key) ? { label: 'ChatGPT', methods: [{ id: 'oauth' }], inFlight: false } : undefined },
     cancel() {}, begin() { throw new Error('Smoke test must not start real OAuth') },
   },
-  connection: { fetch: { register(route) { routes.set(route.path, route.fetch) } } },
+  connection: { fetch: { register(route) { routeSpecs.set(route.path, route); routes.set(route.path, route.fetch) } } },
   llm: { registerAdapter(ids, value) { assert.deepEqual(ids, ['chatgpt-session']); adapter = value; return () => {} } },
 }
 await apply(ctx, {})
 await Promise.all(injections)
 assert.deepEqual([...searchProviders.keys()], ['chatgpt-session-search', 'model-aware-search'])
 await assert.rejects(searchProviders.get('model-aware-search').search({ query: 'synthetic' }), { code: 'SEARCH_INITIATOR_REQUIRED' })
-assert.equal(routes.size, 5)
+assert.equal(routes.size, 6)
+assert.equal(routeSpecs.has('/api/chatgpt-model-probe'), false)
+await checkFetchBridge(routeSpecs.get('/api/chatgpt-catalog-report'))
+assert.deepEqual((await routes.get('/api/chatgpt-catalog-report')(new Request('http://dsh.internal/api/chatgpt-catalog-report?accountId=not-configured'))).headers.get('cache-control'), 'no-store')
 const models = await adapter.listModels('chatgpt-session')
-assert.equal(models.length, 7)
+assert.equal(models.length, 10)
+for (const id of ['gpt-6.2-sol', 'gpt-6.2-astra', 'gpt-6.1-terra']) {
+  assert.ok(models.some(model => model.id === id))
+  const candidate = await adapter.prepareCall('chatgpt-session', id)
+  assert.equal(candidate.model.id, id)
+  assert.equal(candidate.model.provider, 'chatgpt-session')
+}
 const prepared = await adapter.prepareCall('chatgpt-session', 'gpt-6.1-sol')
 assert.equal(prepared.model.provider, 'chatgpt-session')
 async function call(path, body) {
