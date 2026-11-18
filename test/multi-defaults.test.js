@@ -2,113 +2,106 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { Accounts } from '../multi/accounts.js'
 import { ChatDefaults } from '../multi/defaults.js'
-import { MODEL_IDS } from '../multi/routing.js'
 
+const native = id => ({ id, reasoning: true, thinkingLevelMap: { low: 'low', high: 'high' }, defaultReasoningEffort: 'low' })
 function fixture() {
-  const maps = { accounts: new Map(), sessions: new Map(), defaults: new Map() }
-  const configured = new Set(), descriptions = []
-  let writes = 0
-  const domain = { table: name => ({
-    get: id => maps[name].get(id), entries: () => maps[name].entries(),
-    put: async (id, value) => { if (name === 'defaults') writes++; maps[name].set(id, structuredClone(value)) },
-    delete: async id => maps[name].delete(id),
-  }), close: async () => {} }
-  const credentials = {
-    describeRecord: async key => { descriptions.push(key); return { configured: configured.has(key) } },
-    readRecord: async () => { throw new Error('Must not read grants') },
-    deleteRecord: async key => configured.delete(key),
-  }
-  const accounts = new Accounts({ domain, credentials, isSessionBusy: () => true })
-  const table = domain.table('defaults')
-  const defaults = new ChatDefaults({ accounts, table })
-  const add = (id, createdAt, signed = true) => {
-    maps.accounts.set(id, { label: id, createdAt })
-    if (signed) configured.add(accounts.key(id))
-    return id
-  }
-  return { accounts, defaults, maps, configured, descriptions, add, writes: () => writes,
-    reopen: () => new ChatDefaults({ accounts, table }) }
+  const maps = { accounts: new Map(), sessions: new Map(), defaults: new Map() }, configured = new Set()
+  const domain = { table: name => ({ get: id => maps[name].get(id), entries: () => maps[name].entries(), put: async (id, value) => maps[name].set(id, structuredClone(value)), delete: async id => maps[name].delete(id) }) }
+  const accounts = new Accounts({ domain, credentials: { describeRecord: async key => ({ configured: configured.has(key) }) }, isSessionBusy: () => true })
+  let models = ['gpt-6.2-sol', 'gpt-6.10-sol', 'gpt-99-sol-preview', 'gpt-100-astra'].map(id => ({ id, compatible: true, reasoning: { efforts: [{ id: 'low', name: 'low' }, { id: 'high', name: 'high' }], defaultEffort: 'low' } }))
+  const catalog = { refresh: async () => ({ models, freshness: 'fresh', checkedAt: 123 }), available: async (accountId, id) => {
+    if (!models.some(model => model.id === id && model.compatible)) throw Object.assign(new Error('Unavailable'), { code: 'MODEL_UNAVAILABLE' })
+    return native(id)
+  } }
+  const table = domain.table('defaults'), defaults = new ChatDefaults({ accounts, table, catalog })
+  const add = (id, createdAt = 1) => { maps.accounts.set(id, { createdAt }); configured.add(accounts.key(id)) }
+  return { accounts, defaults, maps, catalog, add, configured, models: value => { models = value }, reopen: () => new ChatDefaults({ accounts, table, catalog }) }
 }
-const initial = accountId => ({ enabled: true, accountId, model: 'gpt-6.1-sol', reasoningEffort: 'low', available: true })
 
-test('defaults wait for configured accounts without persisting an empty marker', async () => {
-  const f = fixture()
-  f.add('empty', 0, false)
-  assert.deepEqual(await f.defaults.snapshot(), { ...initial(null), enabled: false, available: false })
-  assert.equal(f.writes(), 0)
-  f.add('later', 30)
-  f.add('first', 10)
-  f.add('same-time', 10)
-  assert.deepEqual(await f.defaults.snapshot(), initial('first'))
-  assert.equal(f.writes(), 1)
-  assert.deepEqual(await f.reopen().snapshot(), initial('first'))
-  assert.deepEqual([...f.maps.sessions], [])
+test('absent default selects numeric latest compatible Sol from first configured account only', async () => {
+  const f = fixture(); f.add('a'); f.add('b', 2)
+  const result = await f.defaults.snapshot()
+  assert.equal(result.model, 'gpt-6.10-sol'); assert.equal(result.accountId, 'a')
+  assert.equal(result.selectionMode, 'auto-latest-sol'); assert.equal(result.available, true)
+  assert.equal(f.maps.sessions.size, 0)
 })
 
-test('defaults persist custom selections and accept all seven models and reasoning levels while busy', async () => {
-  const f = fixture(); f.add('a', 1); f.add('b', 2)
-  f.maps.sessions.set('existing', { accountId: 'a' })
-  f.accounts.activeAccounts.set('b', 1)
-  for (const model of MODEL_IDS) {
-    for (const reasoningEffort of ['low', 'medium', 'high', 'xhigh']) {
-      const expected = { enabled: true, accountId: 'b', model, reasoningEffort, available: true }
-      assert.deepEqual(await f.defaults.save({ accountId: 'b', model, reasoningEffort }), expected)
-      assert.deepEqual(await f.reopen().snapshot(), expected)
-    }
+test('legacy records including disabled old factory IDs migrate without guessing provenance', async () => {
+  for (const enabled of [true, false]) {
+    const f = fixture(); f.add('a')
+    f.maps.defaults.set('default', { enabled, accountId: 'a', model: 'gpt-6.1-sol', reasoningEffort: 'low' })
+    const value = await f.defaults.snapshot()
+    assert.equal(value.model, 'gpt-6.1-sol'); assert.equal(value.enabled, enabled)
+    assert.equal(value.selectionMode, 'legacy-preserved'); assert.equal(value.available, false)
+    assert.equal(f.maps.defaults.get('default').selectionMode, 'legacy-preserved')
   }
-  assert.deepEqual([...f.maps.sessions], [['existing', { accountId: 'a' }]])
-  assert.equal(f.accounts.activeAccounts.get('b'), 1)
 })
 
-test('saved missing or signed-out accounts never fall back or erase the selection', async () => {
-  const f = fixture(); f.add('a', 1); f.add('b', 2)
+test('save validates account catalog and exact effort; explicit disable pins persistently', async () => {
+  const f = fixture(); f.add('a')
+  const choice = { accountId: 'a', model: 'gpt-6.2-sol', reasoningEffort: 'high' }
+  assert.equal((await f.defaults.save(choice)).selectionMode, 'user-pinned')
+  assert.equal((await f.reopen().snapshot()).model, choice.model)
+  await assert.rejects(f.defaults.save({ ...choice, reasoningEffort: 'xhigh' }), { code: 'INVALID_REASONING_EFFORT' })
+  await assert.rejects(f.defaults.save({ ...choice, model: 'unknown' }))
+  await f.defaults.disable()
+  assert.equal((await f.reopen().snapshot()).enabled, false)
+  assert.equal((await f.defaults.enableAuto({ accountId: 'a' })).model, 'gpt-6.10-sol')
+})
+
+test('stale/no Sol never guesses, retains prior auto model and reports unavailable', async () => {
+  const f = fixture(); f.add('a')
   await f.defaults.snapshot()
+  f.catalog.refresh = async () => ({ models: [], freshness: 'stale' })
+  const value = await f.defaults.snapshot()
+  assert.equal(value.model, 'gpt-6.10-sol'); assert.equal(value.available, false); assert.equal(value.status, 'no-fresh-sol')
+  const g = fixture(); g.add('a'); g.models([])
+  const absent = await g.defaults.snapshot()
+  assert.equal(absent.model, ''); assert.equal(absent.available, false)
+})
+
+test('discovery may acquire Accounts gate; concurrent disable wins late refresh', async () => {
+  const f = fixture(); f.add('a')
+  let release, started
+  const waiting = new Promise(resolve => { release = resolve }), ready = new Promise(resolve => { started = resolve })
+  const original = f.catalog.refresh
+  f.catalog.refresh = async (...args) => {
+    await f.accounts.exclusive(async () => {})
+    started(); await waiting
+    return original(...args)
+  }
+  const pending = f.defaults.snapshot()
+  await ready; await f.defaults.disable(); release()
+  const value = await pending
+  assert.equal(value.enabled, false); assert.equal(value.selectionMode, 'user-pinned')
+  assert.equal(f.maps.defaults.get('default').enabled, false)
+})
+
+test('late auto discovery cannot overwrite concurrent exact save', async () => {
+  const f = fixture(); f.add('a'); f.add('b', 2)
+  let release, started
+  const ready = new Promise(resolve => { started = resolve })
+  const original = f.catalog.refresh
+  f.catalog.refresh = async (...args) => { started(); await new Promise(resolve => { release = resolve }); return original(...args) }
+  const pending = f.defaults.snapshot()
+  await ready
+  await f.defaults.save({ accountId: 'b', model: 'gpt-6.2-sol', reasoningEffort: 'high' })
+  release()
+  const value = await pending
+  assert.equal(value.accountId, 'b'); assert.equal(value.model, 'gpt-6.2-sol'); assert.equal(value.reasoningEffort, 'high')
+  assert.equal(value.selectionMode, 'user-pinned')
+})
+
+test('signed-out pinned account retains exact model without account fallback', async () => {
+  const f = fixture(); f.add('a'); f.add('b', 2)
+  await f.defaults.save({ accountId: 'a', model: 'gpt-6.2-sol', reasoningEffort: 'high' })
   f.configured.delete(f.accounts.key('a'))
-  assert.deepEqual(await f.reopen().snapshot(), { ...initial('a'), available: false })
-  await f.accounts.remove('a')
-  assert.deepEqual(await f.reopen().snapshot(), { ...initial('a'), available: false })
-  assert.equal(f.writes(), 1)
+  const value = await f.defaults.snapshot()
+  assert.equal(value.accountId, 'a'); assert.equal(value.model, 'gpt-6.2-sol'); assert.equal(value.available, false)
 })
 
-test('explicit disable persists before any initialization and never reselects on reopen', async () => {
-  const f = fixture()
-  assert.equal((await f.defaults.disable()).enabled, false)
-  f.add('a', 1)
-  assert.deepEqual(await f.reopen().snapshot(), { ...initial(null), enabled: false, available: false })
-  await f.defaults.save({ accountId: 'a', model: 'gpt-6-luna', reasoningEffort: 'high' })
-  const disabled = await f.defaults.disable()
-  assert.deepEqual(await f.reopen().snapshot(), disabled)
-  assert.equal(disabled.accountId, 'a')
-  assert.equal(disabled.enabled, false)
-})
-
-test('concurrent initialization, save and disable serialize on the existing Accounts gate', async () => {
-  const f = fixture(); f.add('a', 1); f.add('b', 2)
-  const selected = { accountId: 'b', model: 'gpt-5.6-terra', reasoningEffort: 'xhigh' }
-  const results = await Promise.all([
-    f.defaults.snapshot(), f.reopen().snapshot(), f.defaults.save(selected), f.defaults.disable(), f.defaults.snapshot(),
-  ])
-  assert.deepEqual(results[0], initial('a'))
-  assert.deepEqual(results[1], initial('a'))
-  assert.deepEqual(results[2], { ...selected, enabled: true, available: true })
-  assert.deepEqual(results[3], { ...selected, enabled: false, available: true })
-  assert.deepEqual(results[4], results[3])
-  assert.equal(f.writes(), 3)
-  assert.deepEqual(await f.reopen().snapshot(), results[3])
-  assert.deepEqual([...f.maps.sessions], [])
-})
-
-test('validation fails without writing or changing bindings and a failed save does not poison the gate', async () => {
-  const f = fixture(); f.add('a', 1); f.add('empty', 2, false)
-  const valid = { accountId: 'a', model: 'gpt-6.1-sol', reasoningEffort: 'low' }
-  for (const [value, code] of [
-    [{ ...valid, model: 'unknown' }, 'INVALID_MODEL'],
-    [{ ...valid, reasoningEffort: 'off' }, 'INVALID_REASONING_EFFORT'],
-    [{ ...valid, accountId: 'missing' }, 'ACCOUNT_NOT_FOUND'],
-    [{ ...valid, accountId: 'empty' }, 'ACCOUNT_SIGNED_OUT'],
-    [{}, 'INVALID_MODEL'],
-  ]) await assert.rejects(f.defaults.save(value), { code })
-  assert.equal(f.writes(), 0)
-  assert.deepEqual(await f.defaults.save(valid), initial('a'))
-  assert.deepEqual([...f.maps.sessions], [])
+test('catalog omission is safe, never falls back to a hardcoded model', async () => {
+  const f = fixture(); f.add('a')
+  const value = await new ChatDefaults({ accounts: f.accounts, table: { get: () => undefined } }).snapshot()
+  assert.equal(value.available, false); assert.equal(value.model, '')
 })

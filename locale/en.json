@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "ChatGPT Link",
-    "description": "Multiple ChatGPT accounts and per-session quotas. Explicitly select Auto: ChatGPT / DeepSeek in Settings → Web Search; loading never changes settings. GPT search consumes ChatGPT allowance (exact cost unmeasured); native DeepSeek keeps existing billing. Fetch unchanged."
+    "description": "Multiple ChatGPT accounts, per-session quotas and account-scoped model discovery without inference. Stale/unverified metadata and incompatible models are marked; existing chats and pinned defaults stay unchanged. Explicitly select Auto: ChatGPT / DeepSeek in Settings → Web Search; loading never changes settings. GPT search consumes ChatGPT allowance (exact cost unmeasured); native DeepSeek keeps existing billing. Fetch unchanged."
   }
 }

@@ -1,8 +1,10 @@
 export const SESSION_PROVIDER = 'chatgpt-session'
 const NATIVE_PROVIDER = 'openai-codex'
+// Historical compatibility export only; never used to validate or restrict routing.
 export const MODEL_IDS = Object.freeze([
   'gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna',
   'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
+  'gpt-5.5', 'gpt-5.3-codex-spark',
 ])
 
 function failure(code, message) {
@@ -29,17 +31,26 @@ function nativeRequest(options, accountId) {
   }
 }
 
-/** Immutable common catalog: account identity affects authentication, never model capabilities. */
-export function commonProfiles(nativeProvider, resolveRetryPolicy) {
-  const catalog = nativeProvider.getModels()
-  const models = Object.freeze(MODEL_IDS.map(id => {
-    const found = catalog.find(model => model.id === id)
-    if (!found) throw failure('UNKNOWN_MODEL', `Bundled Codex catalog lacks required model ${id}`)
-    return Object.freeze({
-      ...found,
-      thinkingLevelMap: Object.freeze({ off: null, minimal: null, low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: null }),
-    })
-  }))
+// Copy before freezing: native providers and other snapshots retain ownership.
+function immutable(value) {
+  if (Array.isArray(value)) return Object.freeze(value.map(immutable))
+  if (value && typeof value === 'object') return Object.freeze(Object.fromEntries(Object.entries(value).map(([key, item]) => [key, immutable(item)])))
+  return value
+}
+
+/** Safe schema union, not an account entitlement list. Invalid records are independent. */
+export function commonProfiles(nativeProvider, resolveRetryPolicy, definitions = nativeProvider.getModels()) {
+  const seen = new Set()
+  const models = Object.freeze(definitions.filter(model => {
+    if (!model || typeof model.id !== 'string' || !model.id.trim() || seen.has(model.id)
+      || model.provider !== NATIVE_PROVIDER || typeof model.api !== 'string'
+      || !Array.isArray(model.input) || !model.input.length
+      || !Number.isFinite(model.contextWindow) || model.contextWindow <= 0
+      || !Number.isFinite(model.maxTokens) || model.maxTokens <= 0
+      || typeof model.reasoning !== 'boolean' || !model.cost) return false
+    seen.add(model.id)
+    return true
+  }).map(immutable))
   const provider = Object.freeze({
     ...nativeProvider,
     getModels: () => models,
@@ -63,29 +74,71 @@ export function commonProfiles(nativeProvider, resolveRetryPolicy) {
   })]])
 }
 
+const EFFORTS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+function supportsEffort(model, effort) {
+  const mapped = model.thinkingLevelMap?.[effort]
+  return EFFORTS.includes(effort) && (model.reasoning
+    ? mapped !== null && (!['xhigh', 'max'].includes(effort) || mapped !== undefined)
+    : effort === 'off')
+}
+
+// A prepared snapshot freezes transport metadata, not an entitlement. Fresh account
+// capabilities can only narrow it; never replace its cost/compat/wire mappings.
+function restrictPrepared(captured, available) {
+  if (!captured) return available
+  if (!available) return captured
+  if (captured.id !== available.id || captured.api !== available.api || captured.provider !== available.provider) {
+    throw failure('MODEL_UNAVAILABLE', 'Prepared transport is no longer compatible')
+  }
+  const input = captured.input.filter(modality => available.input.includes(modality))
+  if (!input.length) throw failure('MODEL_UNAVAILABLE', 'Prepared input capabilities are no longer available')
+  return immutable({
+    ...captured,
+    input,
+    contextWindow: Math.min(captured.contextWindow, available.contextWindow),
+    maxTokens: Math.min(captured.maxTokens, available.maxTokens),
+    reasoning: captured.reasoning && available.reasoning,
+    thinkingLevelMap: Object.fromEntries(EFFORTS.map(effort => [effort,
+      supportsEffort(captured, effort) && supportsEffort(available, effort)
+        ? captured.thinkingLevelMap?.[effort] : null,
+    ])),
+  })
+}
+
 /** Dependency injection keeps routing/lease behavior testable without importing the Host runtime. */
-export function createRoutingAdapter({ LlmAdapter, metadataAdapter, makeAccountAdapter }, accounts) {
+export function createRoutingAdapter({ LlmAdapter, metadataAdapter, makeAccountAdapter, catalog }, accounts) {
+  const metadata = () => typeof metadataAdapter === 'function' ? metadataAdapter() : metadataAdapter
+  // Definition identity is safe even when two account views have the same version.
   const delegates = new Map()
-  const delegateFor = id => {
+  const delegateFor = (id, definition) => {
     if (typeof id !== 'string' || !id) throw failure('SESSION_ACCOUNT_REQUIRED', 'Select a ChatGPT account for this session')
-    if (!delegates.has(id)) delegates.set(id, makeAccountAdapter(accounts.credentialStore(id)))
-    return delegates.get(id)
+    let cached = delegates.get(id)
+    if (!cached || cached.definition !== definition) {
+      cached = { definition, adapter: makeAccountAdapter(accounts.credentialStore(id), definition) }
+      delegates.set(id, cached)
+    }
+    // In-flight generators retain their own adapter even after the cache advances.
+    return cached.adapter
   }
   return new class extends LlmAdapter {
     providerInfo() { return { id: SESSION_PROVIDER, name: 'ChatGPT (session account)' } }
-    providerRetryPolicy() { return metadataAdapter.providerRetryPolicy(NATIVE_PROVIDER) }
-    imageRequestTarget(_provider, model, image) { return metadataAdapter.imageRequestTarget(NATIVE_PROVIDER, model, image) }
+    providerRetryPolicy() { return metadata().providerRetryPolicy(NATIVE_PROVIDER) }
+    imageRequestTarget(_provider, model, image) { return metadata().imageRequestTarget(NATIVE_PROVIDER, model, image) }
     async listModels() {
-      return (await metadataAdapter.listModels(NATIVE_PROVIDER)).map(model => ({ ...model, provider: SESSION_PROVIDER }))
+      return (await metadata().listModels(NATIVE_PROVIDER)).map(model => ({ ...model, provider: SESSION_PROVIDER }))
     }
     async resolveModel(_provider, model, signal) {
-      return { ...await metadataAdapter.resolveModel(NATIVE_PROVIDER, model, signal), provider: SESSION_PROVIDER }
+      return { ...await metadata().resolveModel(NATIVE_PROVIDER, model, signal), provider: SESSION_PROVIDER }
     }
     async prepareCall(_provider, model, signal) {
-      const prepared = await metadataAdapter.prepareCall(NATIVE_PROVIDER, model, signal)
-      return { model: { ...prepared.model, provider: SESSION_PROVIDER }, stream: options => this.stream(options) }
+      const definition = catalog?.knownModels().find(item => item.id === model)
+      const prepared = await metadata().prepareCall(NATIVE_PROVIDER, model, signal)
+      return { model: { ...prepared.model, provider: SESSION_PROVIDER }, stream: options => {
+        if (options.model !== model) throw failure('UNKNOWN_MODEL', 'Prepared model does not match dispatch')
+        return this.stream(options, definition)
+      } }
     }
-    async *stream(options) {
+    async *stream(options, capturedDefinition) {
       if (options.provider !== SESSION_PROVIDER) throw failure('NO_ADAPTER', 'Unexpected ChatGPT provider route')
       if (typeof options.sessionId !== 'string' || !options.sessionId) {
         throw failure('SESSION_ACCOUNT_REQUIRED', 'A session is required to select a ChatGPT account')
@@ -97,7 +150,15 @@ export function createRoutingAdapter({ LlmAdapter, metadataAdapter, makeAccountA
         : { accountId: await accounts.resolveSession(options.sessionId), release() {} }
       try {
         options.signal?.throwIfAborted()
-        const adapter = delegateFor(lease.accountId)
+        const available = catalog && await catalog.available(lease.accountId, options.model, { signal: options.signal })
+        if (catalog && (!available || available.id !== options.model)) throw failure('MODEL_UNAVAILABLE', 'Model is unavailable for this account')
+        const definition = restrictPrepared(capturedDefinition, available)
+        if (options.reasoningEffort !== undefined && [capturedDefinition, available, definition]
+          .some(model => model && !supportsEffort(model, options.reasoningEffort))) {
+          throw failure('UNSUPPORTED_REASONING_EFFORT', 'Reasoning effort is unsupported by this model')
+        }
+        options.signal?.throwIfAborted()
+        const adapter = delegateFor(lease.accountId, definition)
         const prepared = await adapter.prepareCall(NATIVE_PROVIDER, options.model, options.signal)
         options.signal?.throwIfAborted()
         const replayIdentity = lease.replayIdentity ?? lease.accountId
@@ -119,17 +180,21 @@ export function createRoutingAdapter({ LlmAdapter, metadataAdapter, makeAccountA
 }
 
 /** Install a separate route; the existing openai-codex adapter and its grant remain untouched. */
-export async function installRouting(ctx, accounts) {
+export async function installRouting(ctx, accounts, catalog) {
   const [{ LlmAdapter, resolveRetryPolicy, resolveImageAttachmentAccess }, { PiAiAdapter }, { openaiCodexProvider }] = await Promise.all([
     ctx.loader.import('@deepseek-ai/dsh-llm'),
     ctx.loader.import('@deepseek-ai/dsh-llm-pi-ai'),
     ctx.loader.import('@earendil-works/pi-ai/providers/openai-codex'),
   ])
-  const profiles = commonProfiles(openaiCodexProvider(), resolveRetryPolicy)
+  const nativeProvider = openaiCodexProvider()
+  const profiles = commonProfiles(nativeProvider, resolveRetryPolicy)
   // Never discover another account's ambient environment credentials.
   const authContext = { env: async () => undefined, fileExists: async () => false }
-  const makeAccountAdapter = credentials => new PiAiAdapter({
-    profiles: () => profiles,
+  const makeAccountAdapter = (credentials, definition, snapshotProfiles = definition
+    ? commonProfiles(nativeProvider, resolveRetryPolicy, [
+        ...(catalog?.knownModels() ?? nativeProvider.getModels()).filter(model => model.id !== definition.id), definition,
+      ]) : profiles) => new PiAiAdapter({
+    profiles: () => snapshotProfiles,
     resolveApiKey: async () => undefined,
     auth: { credentials, authContext },
     resolveAttachments: () => ctx.get('attachments'),
@@ -137,11 +202,21 @@ export async function installRouting(ctx, accounts) {
       attachments, path => ctx.get('fs')?.processPathFromHostPath(path), ref,
     ),
   })
-  const metadataAdapter = makeAccountAdapter({
+  const metadataCredentials = {
     read: async () => undefined, list: async () => [],
     modify: async () => { throw failure('NO_CREDENTIAL_STORE', 'Catalog does not authenticate') },
     delete: async () => { throw failure('NO_CREDENTIAL_STORE', 'Catalog does not authenticate') },
-  })
-  const adapter = createRoutingAdapter({ LlmAdapter, metadataAdapter, makeAccountAdapter }, accounts)
+  }
+  let previousModels, currentMetadata
+  const metadataAdapter = () => {
+    const models = catalog?.knownModels() ?? nativeProvider.getModels()
+    // Compare identities too: version counters may restart for a different account view.
+    if (!previousModels || previousModels.length !== models.length || models.some((model, i) => model !== previousModels[i])) {
+      previousModels = [...models]
+      currentMetadata = makeAccountAdapter(metadataCredentials, undefined, commonProfiles(nativeProvider, resolveRetryPolicy, models))
+    }
+    return currentMetadata
+  }
+  const adapter = createRoutingAdapter({ LlmAdapter, metadataAdapter, makeAccountAdapter, catalog }, accounts)
   return ctx.llm.registerAdapter([SESSION_PROVIDER], adapter)
 }

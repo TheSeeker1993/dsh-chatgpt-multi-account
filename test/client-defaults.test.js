@@ -20,7 +20,7 @@ function fixture(fetch) {
   assert.equal(source.split(marker).length, 2)
   vm.runInContext(source.replace(marker, '    globalThis.helpers = {request, newChatCombo, defaultsMatch, NewChatDefaults};\n' + marker), context)
   definition.factory(() => react)
-  return { ...context.helpers, render(props) { cursor = 0; tree = context.helpers.NewChatDefaults({ t: key => key, ...props }); effects.splice(0).forEach(f => f()); return tree.children.find(n => n.type === 'input') }, unmount() { slots.forEach(v => v?.cleanup?.()) } }
+  return { ...context.helpers, render(props) { cursor = 0; tree = context.helpers.NewChatDefaults({ t: key => key, ...props }); effects.splice(0).forEach(f => f()); return tree.children.find(n => n.type === 'input') }, button(label) { return tree.children.find(n => n.type === 'button' && (!label || n.children.includes(label))) }, unmount() { slots.forEach(v => v?.cleanup?.()) } }
 }
 const combo = { accountId: 'preview', model: 'gpt-6.1-sol', reasoningEffort: 'low' }
 const saved = { enabled: true, available: true, ...combo }
@@ -28,7 +28,7 @@ const response = data => ({ ok: true, json: async () => data })
 
 test('native current model only, preview account and exact saved match', () => {
   const f = fixture(() => { throw Error('no network') })
-  const models = [{ id: combo.model, reasoning: { efforts: [{ id: 'low' }] } }]
+  const models = [{ id: combo.model, compatible: true, reasoning: { efforts: [{ id: 'low' }] } }]
   const account = { id: 'preview', configured: true }
   assert.deepEqual(plain(f.newChatCombo({ provider: 'chatgpt-session', model: combo.model }, models, account, 'low', 'gpt')), combo)
   for (const current of [null, { provider: 'other', model: combo.model }, { provider: 'chatgpt-session', model: 'missing' }]) assert.equal(f.newChatCombo(current, models, account, 'low', 'gpt'), null)
@@ -125,4 +125,65 @@ test('POST obtains CSRF from GET before sending', async () => {
   await f.request('api/chatgpt-defaults', { action: 'save', ...combo })
   assert.deepEqual(calls.map(c => c.method), ['GET', 'POST'])
   assert.equal(calls[1].headers['x-chatgpt-defaults-csrf'], 'c'.repeat(64))
+})
+
+ test('automatic latest Sol is a separate explicit action scoped to preview account', async () => {
+  const calls = []
+  const f = fixture(async (_path, options) => { calls.push(options); return response(options.method === 'GET' ? { ...saved, selectionMode: 'legacy-preserved', csrfToken: 'e'.repeat(64) } : { ...saved, selectionMode: 'auto-latest-sol' }) })
+  const props = { open: true, combo: null, accountId: 'preview' }
+  f.render(props); await settle(); f.render(props)
+  assert.equal(calls.length, 1)
+  assert.equal(f.button().props.disabled, false)
+  await f.button().props.onClick()
+  assert.deepEqual(JSON.parse(calls[1].body), { action: 'auto', accountId: 'preview' })
+  assert.equal(f.render(props).props.checked, false)
+  f.unmount()
+})
+
+
+test('missing, incompatible or stale model can explicitly disable saved defaults without catalog confirmation', async () => {
+  for (const catalogData of [
+    { accountId: 'preview', freshness: 'fresh', models: [] },
+    { accountId: 'preview', freshness: 'fresh', models: [{ id: combo.model, compatible: false }] },
+    { accountId: 'preview', freshness: 'stale', models: [{ id: combo.model, compatible: true }] },
+  ]) {
+    const calls = []
+    const f = fixture(async (_path, options) => { calls.push(options); return response(options.method === 'GET' ? { ...saved, available: false, csrfToken: 'f'.repeat(64) } : { ...saved, enabled: false }) })
+    const props = { open: true, combo: null, catalogData }
+    f.render(props); await settle()
+    const input = f.render(props)
+    assert.equal(calls.length, 1, 'loading and stale status never autosave')
+    assert.equal(input.props.checked, false)
+    assert.equal(input.props.disabled, true)
+    const disable = f.button('defaultsDisable')
+    assert.equal(disable.props.disabled, false)
+    await disable.props.onClick()
+    assert.deepEqual(JSON.parse(calls[1].body), { action: 'disable' })
+    f.render(props)
+    assert.equal(f.button('defaultsDisable'), undefined)
+    f.unmount()
+  }
+})
+
+test('explicit disable respects external busy, operation lock and closed-widget guards', async () => {
+  let posts = 0, finish
+  const f = fixture(async (_path, options) => {
+    if (options.method === 'GET') return response({ ...saved, csrfToken: 'f'.repeat(64) })
+    posts++; return new Promise(resolve => { finish = resolve })
+  })
+  const props = { open: true, combo: null }
+  f.render(props); await settle(); f.render({ ...props, disabled: true })
+  assert.equal(f.button('defaultsDisable').props.disabled, true)
+  await f.button('defaultsDisable').props.onClick()
+  assert.equal(posts, 0)
+  f.render(props)
+  const action = f.button('defaultsDisable').props.onClick
+  const pending = action(); await action()
+  assert.equal(posts, 1)
+  f.render(props); assert.equal(f.button('defaultsDisable').props.disabled, true)
+  finish(response({ ...saved, enabled: false })); await pending
+  f.render({ ...props, open: false }); f.render({ ...props, open: false })
+  assert.equal(f.button('defaultsDisable'), undefined)
+  assert.equal(posts, 1)
+  f.unmount()
 })

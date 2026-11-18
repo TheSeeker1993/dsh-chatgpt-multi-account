@@ -11,7 +11,7 @@ export function isFreshOrdinaryChat(agent, source) {
 }
 
 export async function applyChatDefaults(defaults, accounts, agent, signal) {
-  const next = await defaults.snapshot()
+  const next = Object.freeze({ ...await defaults.snapshot({ signal }) })
   if (!next.enabled) return
   await accounts.exclusive(async () => {
     signal?.throwIfAborted()
@@ -50,6 +50,7 @@ export function installDefaultsEndpoint(ctx, defaults) {
           if (!body || typeof body !== 'object' || Array.isArray(body)) fail('DEFAULT_INVALID_REQUEST')
           if (body.action === 'save') return Response.json(await defaults.save(body), { headers })
           if (body.action === 'disable') return Response.json(await defaults.disable(), { headers })
+          if (body.action === 'auto') return Response.json(await defaults.enableAuto(body), { headers })
           fail('DEFAULT_INVALID_ACTION')
         }
         return Response.json({ ...await defaults.snapshot(), csrfToken }, { headers })
@@ -61,15 +62,15 @@ export function installDefaultsEndpoint(ctx, defaults) {
   })
 }
 
-export async function installChatDefaults(ctx, accounts) {
+export async function installChatDefaults(ctx, accounts, catalog) {
   const [{ defineDomain, domainTable }, { z }] = await Promise.all([
     ctx.loader.import('@deepseek-ai/dsh-storage-domain'), ctx.loader.import('zod'),
   ])
   // Separate metadata domain: chatgpt_accounts v1 and its durable bindings remain untouched.
   const domain = await ctx.storageDomain.open(defineDomain({ name: 'chatgpt_defaults', version: 1, tables: {
-    preferences: domainTable(z.object({ enabled: z.boolean(), accountId: z.string().nullable(), model: z.string(), reasoningEffort: z.string() })),
+    preferences: domainTable(z.object({ enabled: z.boolean(), accountId: z.string().nullable(), model: z.string(), reasoningEffort: z.string(), selectionMode: z.enum(['auto-latest-sol', 'user-pinned', 'legacy-preserved']).optional() })),
   } }))
-  const defaults = new ChatDefaults({ accounts, table: domain.table('preferences') })
+  const defaults = new ChatDefaults({ accounts, table: domain.table('preferences'), catalog })
   ctx.effect(() => () => domain.close(), 'chatgpt: new-chat defaults')
   ctx.on('agent/created', async ({ agent, source, signal }) => {
     if (!isFreshOrdinaryChat(agent, source)) return

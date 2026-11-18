@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "ChatGPT Link",
-    "description": "多个 ChatGPT 账号和独立额度。请在设置 → 网页搜索中明确选择 Auto: ChatGPT / DeepSeek；加载插件不会修改设置。GPT 搜索消耗 ChatGPT 额度（具体消耗未测量）；原生 DeepSeek 保持现有计费。Fetch 不变。"
+    "description": "多个 ChatGPT 账号、独立额度及按账号发现模型目录，无需推理请求。明确标注过期、未验证数据及不兼容模型；现有聊天和固定默认设置保持不变。请在设置 → 网页搜索中明确选择 Auto: ChatGPT / DeepSeek；加载插件不会修改设置。GPT 搜索消耗 ChatGPT 额度（具体消耗未测量）；原生 DeepSeek 保持现有计费。Fetch 不变。"
   }
 }
