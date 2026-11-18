@@ -6,15 +6,6 @@ import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { apply } from '../index.js'
 const require = createRequire(join(process.env.DSH_INSTALL_DIR, 'package.json'))
-// Hard network fence: catalog discovery is exercised with a synthetic GET only.
-const originalFetch = globalThis.fetch
-let catalogGets = 0
-globalThis.fetch = async (url, options) => {
-  assert.equal(String(url), 'https://chatgpt.com/backend-api/codex/models?client_version=0.166.0')
-  assert.equal(options.method, 'GET')
-  catalogGets++
-  return Response.json({ models: [{ slug: 'gpt-6.1-sol', display_name: 'Synthetic Sol', visibility: 'list', input_modalities: ['text', 'image'], context_window: 500000, supported_reasoning_levels: [{ effort: 'low' }, { effort: 'medium' }], default_reasoning_level: 'low' }, { slug: 'gpt-6.2-sol', visibility: 'list', use_responses_lite: true, tool_mode: 'code_mode_only' }] })
-}
 async function runtimeImport(name) {
   if (name.startsWith('@earendil-works/pi-ai')) {
     const root = join(dirname(require.resolve('@deepseek-ai/dsh-llm-pi-ai/package.json')), '../../@earendil-works/pi-ai/dist')
@@ -30,7 +21,6 @@ const ctx = {
   logger: { warn() {} },
   effect(fn) { const dispose = fn(); if (typeof dispose === 'function') effects.push(dispose) },
   on(name, fn) { listeners.set(name, fn) },
-  emit() {},
   get() { return undefined },
   agents: { get() { return undefined }, currentInitiator() { return undefined } }, sessions: { get() { return undefined } },
   inject(names, callback) { assert.deepEqual(names, ['web', 'settings']); injections.push(callback(this)) },
@@ -38,9 +28,8 @@ const ctx = {
   settings: { describe() { return [] }, update() { throw new Error('Installation must not change search or fetch settings') } },
   storageDomain: { async open(spec) {
     return { table(name) {
-      const address = `${spec.name}/${name}`
-      if (!tables.has(address)) tables.set(address, new Map())
-      const map = tables.get(address)
+      if (!tables.has(name)) tables.set(name, new Map())
+      const map = tables.get(name)
       return { get: key => map.get(key), entries: () => map.entries(),
         async put(key, value) { map.set(key, spec.tables[name].valueSchema.parse(value)) },
         async delete(key) { return map.delete(key) } }
@@ -64,20 +53,9 @@ await apply(ctx, {})
 await Promise.all(injections)
 assert.deepEqual([...searchProviders.keys()], ['chatgpt-session-search', 'model-aware-search'])
 await assert.rejects(searchProviders.get('model-aware-search').search({ query: 'synthetic' }), { code: 'SEARCH_INITIATOR_REQUIRED' })
-assert.equal(routes.size, 6)
+assert.equal(routes.size, 5)
 const models = await adapter.listModels('chatgpt-session')
-assert.equal(models.length, 9)
-assert.deepEqual(models.map(model => model.id).sort(), [
-  'gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna',
-  'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.5', 'gpt-5.3-codex-spark',
-].sort())
-assert.equal(models.some(model => model.id === 'gpt-6.2'), false)
-const { openaiCodexProvider } = await runtimeImport('@earendil-works/pi-ai/providers/openai-codex')
-const spark = openaiCodexProvider().getModels().find(model => model.id === 'gpt-5.3-codex-spark')
-assert.ok(spark, 'Spark must exist in the installed native catalog')
-assert.deepEqual(spark.input, ['text'], 'Spark metadata must not claim image support')
-const sparkPrepared = await adapter.prepareCall('chatgpt-session', 'gpt-5.3-codex-spark')
-assert.equal(sparkPrepared.model.provider, 'chatgpt-session')
+assert.equal(models.length, 7)
 const prepared = await adapter.prepareCall('chatgpt-session', 'gpt-6.1-sol')
 assert.equal(prepared.model.provider, 'chatgpt-session')
 async function call(path, body) {
@@ -98,11 +76,6 @@ records.set(`dsh-gpt-link/account-${id}`, { kind: 'grant', payload: { type: 'oau
 assert.equal((await call('/api/chatgpt-accounts', { action: 'select', accountId: id, sessionId: 'synthetic-session' })).data.sessionAccountId, id)
 assert.equal((await call(`/api/chatgpt-quota?accountId=${id}`)).data.message, 'quota-token-stale')
 assert.equal((await call(`/api/chatgpt-resets?accountId=${id}`)).data.error, 'RESET_TOKEN_EXPIRED')
-// Give native getAuth a valid synthetic grant so this smoke never refreshes OAuth.
-records.set(`dsh-gpt-link/account-${id}`, { kind: 'grant', payload: { type: 'oauth', access: 'synthetic', refresh: 'synthetic-refresh', accountId: 'synthetic', expires: Date.now() + 3600000 } })
-const catalog = (await call(`/api/chatgpt-models?accountId=${id}`)).data
-assert.equal(catalog.freshness, 'fresh')
-assert.equal(catalog.models.find(model => model.id === 'gpt-6.2-sol').compatible, false)
 const defaults = (await call('/api/chatgpt-defaults')).data
 assert.equal(defaults.enabled, true)
 assert.equal(defaults.accountId, id)
@@ -124,6 +97,4 @@ assert.equal(selection, undefined)
 assert.equal((await call('/api/chatgpt-accounts', { action: 'remove', accountId: id })).status, 200)
 assert.equal(records.size, 0)
 for (const dispose of effects.reverse()) await dispose()
-assert.ok(catalogGets > 0)
-globalThis.fetch = originalFetch
 console.log('Installed-runtime smoke passed: real adapter/catalog/schema APIs, synthetic account CRUD/binding/auth status/quota, no OAuth or inference network calls.')

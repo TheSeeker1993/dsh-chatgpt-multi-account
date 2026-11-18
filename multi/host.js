@@ -3,7 +3,6 @@ import { createAccountServices } from './auth.js'
 import { installRouting } from './routing.js'
 import { installResetEndpoint } from './reset-host.js'
 import { installChatDefaults } from './defaults-host.js'
-import { installModelCatalog } from './catalog-host.js'
 
 const HEADERS = { 'cache-control': 'no-store' }
 export async function installMultiAccount(ctx, config) {
@@ -25,12 +24,8 @@ export async function installMultiAccount(ctx, config) {
   ctx.effect(() => () => { services?.dispose(); return accounts.close() }, 'dsh-gpt-link: accounts')
   await accounts.initialize()
   services = await createAccountServices(ctx, accounts, config.cacheTtlMs)
-  const catalog = await installModelCatalog(ctx, accounts)
-  await installRouting(ctx, accounts, catalog)
-  const defaults = await installChatDefaults(ctx, accounts, catalog)
-  // Warm only the future-chat account. Discovery does not execute inference or
-  // change an existing session's selection, even when it completes after startup.
-  void defaults.snapshot().catch(() => ctx.logger?.warn?.('ChatGPT model catalog initialization unavailable'))
+  await installRouting(ctx, accounts)
+  await installChatDefaults(ctx, accounts)
   installResetEndpoint(ctx, accounts, { onConsumed: id => services.entry(id).quota.forget() })
   function register(path, handle) {
     ctx.connection.fetch.register({ path, methods: ['GET', 'POST'], requestBody: 'buffered',
@@ -61,7 +56,7 @@ export async function installMultiAccount(ctx, config) {
       if (body.action === 'create') createdAccountId = await accounts.create(body.label)
       else if (body.action === 'rename') await accounts.rename(body.accountId, body.label)
       else if (body.action === 'select') await accounts.select(sessionId, body.accountId)
-      else if (body.action === 'remove') { await services.remove(body.accountId); catalog.invalidate(body.accountId) }
+      else if (body.action === 'remove') await services.remove(body.accountId)
       else throw new AccountError('INVALID_ACTION')
     }
     return { ...await accounts.snapshot(sessionId), ...(createdAccountId ? { createdAccountId } : {}) }

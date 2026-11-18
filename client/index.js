@@ -334,15 +334,9 @@ window.__ModuleLoader__.load({
     }
 
     // Cookie-authenticated, document-relative URLs preserve a mounted Host path.
-    let modelsCsrfToken = null
     let defaultsCsrfToken = null
     let resetCsrfToken = null
     async function request(path, body, signal) {
-      const modelsRequest = path.startsWith('api/chatgpt-models')
-      if (modelsRequest && body !== undefined && !modelsCsrfToken) {
-        await request('api/chatgpt-models?accountId=' + encodeURIComponent(body.accountId), undefined, signal)
-        if (!modelsCsrfToken) throw new Error('MODELS_CSRF_INVALID')
-      }
       const defaultsRequest = path === 'api/chatgpt-defaults'
       if (defaultsRequest && body !== undefined && !defaultsCsrfToken) {
         await request('api/chatgpt-defaults', undefined, signal)
@@ -355,7 +349,7 @@ window.__ModuleLoader__.load({
       }
       const response = await fetch(path, {
         method: body === undefined ? 'GET' : 'POST', cache: 'no-store', credentials: 'same-origin', signal,
-        headers: { accept: 'application/json', ...(modelsRequest && body !== undefined ? { 'x-chatgpt-models-csrf': modelsCsrfToken } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(resetRequest && body !== undefined ? { 'x-chatgpt-reset-csrf': resetCsrfToken } : {}), ...(defaultsRequest && body !== undefined ? { 'x-chatgpt-defaults-csrf': defaultsCsrfToken } : {}) },
+        headers: { accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(resetRequest && body !== undefined ? { 'x-chatgpt-reset-csrf': resetCsrfToken } : {}), ...(defaultsRequest && body !== undefined ? { 'x-chatgpt-defaults-csrf': defaultsCsrfToken } : {}) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       })
       const result = await response.json().catch(() => null)
@@ -363,10 +357,8 @@ window.__ModuleLoader__.load({
       if (resetRequest && result?.error === 'RESET_CSRF_INVALID') resetCsrfToken = null
       if (defaultsRequest && body === undefined && response.ok && typeof result?.csrfToken === 'string' && /^[a-f0-9]{64}$/.test(result.csrfToken)) defaultsCsrfToken = result.csrfToken
       if (defaultsRequest && result?.error === 'DEFAULT_CSRF_INVALID') defaultsCsrfToken = null
-      if (modelsRequest && body === undefined && response.ok && /^[a-f0-9]{64}$/.test(result?.csrfToken)) modelsCsrfToken = result.csrfToken
-      if (modelsRequest && result?.error === 'MODELS_CSRF_INVALID') modelsCsrfToken = null
       if (!response.ok) throw new Error(typeof result?.error === 'string' ? result.error : `HTTP ${response.status}`)
-      if (result?.ok === false || (!modelsRequest && result?.error)) throw new Error(typeof result.error === 'string' ? result.error : result.error?.message || 'Request failed')
+      if (result?.ok === false || result?.error) throw new Error(typeof result.error === 'string' ? result.error : result.error?.message || 'Request failed')
       return result
     }
     const accountEvents = new EventTarget()
@@ -1044,89 +1036,9 @@ window.__ModuleLoader__.load({
               h('button', { className: 'gl-btn', type: 'button', disabled: pending, onClick: () => setConfirming(false) }, text(t, 'cancel')))) : null))
     }
 
-    Object.assign(copy.en, { setupApply: 'Apply setup', defaultsAuto: 'Automatic: latest Sol', catalogFresh: 'Account availability confirmed', catalogStale: 'Outdated · availability unconfirmed', catalogUnknown: 'Previously selected · availability unconfirmed', catalogRemoved: 'Previously selected · currently unavailable', catalogTransport: 'Available to account; transport update required', catalogTitle: 'Models', catalogManual: 'Save manual metadata', catalogReset: 'Reset manual metadata', catalogImport: 'Import metadata', catalogConfirm: 'Apply metadata changes? This does not grant account access.', catalogMetadata: 'Metadata only · access unverified' })
-    Object.assign(copy.ru, { setupApply: 'Применить настройку', defaultsAuto: 'Автоматически: последняя Sol', catalogFresh: 'Доступность аккаунту подтверждена', catalogStale: 'Данные устарели · доступность сейчас не подтверждена', catalogUnknown: 'Выбрана ранее · доступность не подтверждена', catalogRemoved: 'Выбрана ранее, сейчас недоступна', catalogTransport: 'Доступна аккаунту, требуется обновление транспорта', catalogTitle: 'Модели', catalogManual: 'Сохранить ручные metadata', catalogReset: 'Сбросить ручные изменения', catalogImport: 'Импортировать metadata', catalogConfirm: 'Применить изменения metadata? Это не выдаёт доступ аккаунту.', catalogMetadata: 'Только metadata · доступ не проверен' })
-    Object.assign(copy.zh, { setupApply: '应用配置', defaultsAuto: '自动：最新 Sol', catalogFresh: '账号可用性已确认', catalogStale: '数据过期，可用性未确认', catalogUnknown: '之前选择，可用性未确认', catalogRemoved: '之前选择，目前不可用', catalogTransport: '账号可用，需要更新传输', catalogTitle: '模型', catalogManual: '保存手动元数据', catalogReset: '重置手动元数据', catalogImport: '导入元数据', catalogConfirm: '应用元数据更改？不会授予账号权限。', catalogMetadata: '仅元数据，权限未验证' })
-    function catalogCandidates(data) {
-      return data?.freshness === 'fresh' ? (data.models ?? []).filter(model => model.compatible === true) : []
-    }
-    function useAccountCatalog(accountId, active) {
-      const [data, setData] = React.useState(null), [loading, setLoading] = React.useState(false)
-      const operation = React.useRef({ epoch: 0, controller: null, promise: null, retryAt: 0 })
-      const refresh = React.useCallback(async () => {
-        const op = operation.current
-        if (!active || !accountId || Date.now() < op.retryAt) return
-        if (op.promise) return op.promise
-        const epoch = op.epoch, controller = new AbortController(); op.controller = controller
-        setLoading(true)
-        setData(old => old ? { ...old, freshness: 'stale' } : old)
-        op.promise = (async () => {
-          try {
-            const next = await request('api/chatgpt-models?accountId=' + encodeURIComponent(accountId), undefined, controller.signal)
-            if (next?.accountId !== accountId || !Array.isArray(next.models)) throw new Error('MODELS_INVALID_RESPONSE')
-            if (epoch !== op.epoch || controller.signal.aborted) return
-            op.retryAt = next.error ? Math.max(Date.now() + 30000, Number(next.nextRetryAt) || 0) : 0
-            setData(next)
-          } catch (e) {
-            if (epoch !== op.epoch || controller.signal.aborted) return
-            op.retryAt = Date.now() + 30000
-            setData(old => ({ ...(old ?? { accountId, models: [] }), freshness: old?.models?.length ? 'stale' : 'empty', error: e.message, nextRetryAt: op.retryAt }))
-          } finally { if (epoch === op.epoch) { op.promise = null; setLoading(false) } }
-        })()
-        return op.promise
-      }, [accountId, active])
-      React.useEffect(() => {
-        const op = operation.current; ++op.epoch; op.controller?.abort(); op.promise = null; op.retryAt = 0
-        setData(null); setLoading(false)
-        if (!active || !accountId) return
-        void refresh()
-        let last = Date.now()
-        const timer = setInterval(() => {
-          if ((op.retryAt && Date.now() >= op.retryAt) || Date.now() - last >= 300000) { last = Date.now(); void refresh() }
-        }, 1000)
-        const online = () => { if (Date.now() >= op.retryAt) void refresh() }
-        window.addEventListener('online', online)
-        return () => { ++op.epoch; op.controller?.abort(); op.promise = null; clearInterval(timer); window.removeEventListener('online', online) }
-      }, [accountId, active, refresh])
-      return { data: data?.accountId === accountId ? data : null, loading, refresh }
-    }
-    function CatalogStatus({ t, catalog }) {
-      const data = catalog.data
-      return h('p', { className: 'gl-note', role: data?.error ? 'alert' : 'status', 'aria-live': 'polite' },
-        text(t, catalog.loading ? 'pickerLoad' : data?.freshness === 'fresh' ? 'catalogFresh' : 'catalogStale'),
-        data?.checkedAt ? ' · ' + shortTime(data.checkedAt) : '', data?.error ? ' · ' + data.error : '',
-        data?.nextRetryAt ? ' · ↻ ' + clockTime(data.nextRetryAt) : '')
-    }
-    function ModelCatalogSettings({ t, accountId, catalog }) {
-      const [json, setJson] = React.useState('[]'), [namespace, setNamespace] = React.useState('llm-pi-ai')
-      const [action, setAction] = React.useState(null), [mode, setMode] = React.useState('merge')
-      const [busy, setBusy] = React.useState(false), [error, setError] = React.useState('')
-      const lock = React.useRef(false)
-      const apply = async () => {
-        if (lock.current || !action || !accountId) return
-        lock.current = true; setBusy(true); setError('')
-        try {
-          const body = { action, accountId }
-          if (action === 'manual') body.models = JSON.parse(json)
-          if (action === 'import') { body.namespace = namespace; body.mode = mode }
-          await request('api/chatgpt-models', body); setAction(null); await catalog.refresh()
-        } catch (e) { setError(e.message) }
-        finally { lock.current = false; setBusy(false) }
-      }
-      return h('section', { className: 'gl-account gl-subagent-setup' },
-        h('h3', null, text(t, 'catalogTitle')), h(CatalogStatus, { t, catalog }),
-        h('p', { className: 'gl-note' }, text(t, 'catalogMetadata')),
-        (catalog.data?.metadata ?? []).map(model => h('p', { className: 'gl-note', key: model.id }, model.name + ' · ' + (model.source ?? (catalog.data?.manualModels?.some(entry => entry.id === model.id) ? 'manual' : 'native')) + ' · ' + text(t, 'catalogMetadata') + (model.compatible === false ? ' · ' + text(t, 'catalogTransport') : ''))),
-        h('textarea', { className: 'gl-input', style: { height: 100 }, value: json, 'aria-label': 'Full model metadata JSON', onChange: e => setJson(e.target.value) }),
-        h('input', { className: 'gl-input', value: namespace, 'aria-label': 'Import namespace', onChange: e => setNamespace(e.target.value) }),
-        h('select', { className: 'gl-input', value: mode, 'aria-label': 'Import mode', onChange: e => setMode(e.target.value) }, ['merge','replace'].map(value => h('option', { value, key: value }, value))),
-        h('div', { className: 'gl-choices' }, [['manual','catalogManual'],['import','catalogImport'],['reset-manual','catalogReset']].map(([value,label]) => h('button', { key: value, type: 'button', className: 'gl-btn', disabled: busy || !accountId, onClick: () => setAction(value) }, text(t, label)))),
-        action ? h('div', null, h('p', null, text(t, 'catalogConfirm')), h('button', { type: 'button', className: 'gl-btn', disabled: busy, onClick: apply }, text(t, 'setupApply')), h('button', { type: 'button', className: 'gl-btn', disabled: busy, onClick: () => setAction(null) }, text(t, 'cancel'))) : null,
-        error ? h('p', { role: 'alert', className: 'gl-note' }, error) : null)
-    }
-
+    const SUBAGENT_MODELS = Object.freeze(['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-sol', 'gpt-6-luna', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'])
     const SUBAGENT_SETTINGS = 'subagent-model-selection-settings'
-    async function readSubagentSettings(remote, candidates = []) {
+    async function readSubagentSettings(remote) {
       const result = await remote.settings.describe()
       if (!result?.ok || !Array.isArray(result.value?.namespaces)) throw new Error('setupUnavailable')
       const descriptor = result.value.namespaces.find(entry => entry?.ns === SUBAGENT_SETTINGS)
@@ -1134,29 +1046,25 @@ window.__ModuleLoader__.load({
       if (!descriptor || !Number.isSafeInteger(descriptor.revision) || typeof value?.enabled !== 'boolean' || !Array.isArray(value.allowedModels)
         || value.allowedModels.some(route => typeof route?.provider !== 'string' || typeof route?.model !== 'string')) throw new Error('setupUnavailable')
       return { descriptor, writable: result.value.writable === true,
-        configured: value.enabled && candidates.length > 0 && candidates.every(model => value.allowedModels.some(route => route.provider === 'chatgpt-session' && route.model === model)) }
+        configured: value.enabled && SUBAGENT_MODELS.every(model => value.allowedModels.some(route => route.provider === 'chatgpt-session' && route.model === model)) }
     }
-    async function configureSubagentModels(remote, candidates) {
-      if (!Array.isArray(candidates) || !candidates.length) throw new Error('setupUnavailable')
+    async function configureSubagentModels(remote) {
       // Fresh read + optimistic revision: preserve other user routes, never overwrite a concurrent edit.
-      const current = await readSubagentSettings(remote, candidates)
+      const current = await readSubagentSettings(remote)
       if (!current.writable) throw new Error('setupReadOnly')
       if (current.configured) return current
       const allowedModels = current.descriptor.value.allowedModels.map(route => ({ ...route }))
-      for (const model of candidates) if (!allowedModels.some(route => route.provider === 'chatgpt-session' && route.model === model)) allowedModels.push({ provider: 'chatgpt-session', model })
+      for (const model of SUBAGENT_MODELS) if (!allowedModels.some(route => route.provider === 'chatgpt-session' && route.model === model)) allowedModels.push({ provider: 'chatgpt-session', model })
       const result = await remote.settings.mutate(SUBAGENT_SETTINGS, [
         { op: 'set', path: ['enabled'], value: true },
         { op: 'set', path: ['allowedModels'], value: allowedModels },
       ], current.descriptor.revision)
       if (!result.ok) throw new Error(result.error?.code === 'settings/conflict' ? 'setupConflict' : 'setupFailed')
-      const verified = await readSubagentSettings(remote, candidates)
+      const verified = await readSubagentSettings(remote)
       if (!verified.configured) throw new Error('setupConflict')
       return verified
     }
-    function SubagentSetup({ t, remote, catalog }) {
-      const candidates = catalogCandidates(catalog).map(model => model.id)
-      const confirmation = React.useRef(null)
-      const candidateKey = (catalog?.accountId ?? '') + ':' + (catalog?.version ?? '') + ':' + candidates.join(',')
+    function SubagentSetup({ t, remote }) {
       const [state, setState] = React.useState(null), [error, setError] = React.useState('')
       const [busy, setBusy] = React.useState(false), [confirming, setConfirming] = React.useState(false)
       const [saved, setSaved] = React.useState(false)
@@ -1164,22 +1072,17 @@ window.__ModuleLoader__.load({
       const load = async () => {
         if (lock.current) return
         lock.current = true; setBusy(true); setError('')
-        try { const next = await readSubagentSettings(remote, candidates); if (alive.current) setState(next) }
+        try { const next = await readSubagentSettings(remote); if (alive.current) setState(next) }
         catch { if (alive.current) { setState(null); setError('setupUnavailable') } }
         finally { lock.current = false; if (alive.current) setBusy(false) }
       }
-      React.useEffect(() => { alive.current = true; void load(); return () => { alive.current = false } }, [remote, candidates.join(',')])
+      React.useEffect(() => { alive.current = true; void load(); return () => { alive.current = false } }, [remote])
       React.useEffect(() => { if (confirming) cancel.current?.focus() }, [confirming])
-      React.useEffect(() => {
-        if (confirming && confirmation.current !== candidateKey) {
-          confirmation.current = null; setConfirming(false); setSaved(false); setError('setupConflict')
-        }
-      }, [candidateKey, confirming])
       const apply = async () => {
-        if (lock.current || !confirming || confirmation.current !== candidateKey) return
+        if (lock.current || !confirming) return
         lock.current = true; setBusy(true); setError(''); setSaved(false)
         try {
-          const next = await configureSubagentModels(remote, candidates)
+          const next = await configureSubagentModels(remote)
           if (alive.current) { setState(next); setConfirming(false); setSaved(true) }
         } catch (e) { if (alive.current) { setError(['setupReadOnly','setupConflict','setupUnavailable'].includes(e.message) ? e.message : 'setupFailed'); setConfirming(false); setState(null) } }
         finally { lock.current = false; if (alive.current) setBusy(false) }
@@ -1195,25 +1098,21 @@ window.__ModuleLoader__.load({
         state && !state.writable ? h('p', { className: 'gl-note' }, text(t, 'setupReadOnly')) : null,
         confirming ? h('div', { className: 'gl-sub', role: 'group', 'aria-label': text(t, 'setupConfirm') },
           h('p', { className: 'gl-note' }, text(t, 'setupConfirm')),
-          h('ul', null, candidates.map(model => h('li', { key: model }, 'chatgpt-session/' + model))),
+          h('ul', null, SUBAGENT_MODELS.map(model => h('li', { key: model }, 'chatgpt-session/' + model))),
           h('div', { className: 'gl-choices' },
             h('button', { ref: cancel, className: 'gl-btn', type: 'button', disabled: busy, onClick: () => setConfirming(false) }, text(t, 'cancel')),
-            h('button', { className: 'gl-btn', type: 'button', disabled: busy || confirmation.current !== candidateKey, onClick: apply }, text(t, 'setupApply')))) :
+            h('button', { className: 'gl-btn', type: 'button', disabled: busy, onClick: apply }, text(t, 'confirm')))) :
           h('div', { className: 'gl-choices' },
-            h('button', { className: 'gl-btn', type: 'button', disabled: busy || !candidates.length || !state?.writable || state.configured, onClick: () => { setSaved(false); confirmation.current = candidateKey; setConfirming(true) } }, text(t, 'setupAction')),
+            h('button', { className: 'gl-btn', type: 'button', disabled: busy || !state?.writable || state.configured, onClick: () => { setSaved(false); setConfirming(true) } }, text(t, 'setupAction')),
             h('button', { className: 'gl-btn', type: 'button', disabled: busy, onClick: load }, text(t, 'refresh'))))
     }
-    Object.assign(copy.ru, { setupTitle: 'Модели субагентов', setupReady: 'Настроено: доступны модели выбранного аккаунта.', setupNeeded: 'Требуется настройка.', setupAction: 'Настроить субагентов', setupNewChats: 'Применяется только к новым чатам. Субагенты наследуют выбранный аккаунт родителя.', setupConfirm: 'Включить выбор моделей и добавить показанные маршруты? Остальные разрешения, включая openai-codex, сохранятся. Убрать ненужные маршруты можно в настройках Subagent.', setupSaved: 'Сохранено. Создайте новый чат, чтобы применить разрешения.', setupUnavailable: 'Настройки субагентов недоступны. Проверьте официальный плагин Subagent и обновите статус.', setupReadOnly: 'Настройки доступны только для чтения.', setupConflict: 'Настройки изменились параллельно. Обновите статус и подтвердите ещё раз.', setupFailed: 'Не удалось сохранить настройки. Обновите статус и повторите подтверждение.' })
-    Object.assign(copy.en, { setupTitle: 'Subagent models', setupReady: 'Configured: selected account models available.', setupNeeded: 'Setup required.', setupAction: 'Set up subagents', setupNewChats: 'Applies only to new chats. Subagents inherit the parent’s selected account.', setupConfirm: 'Enable model selection and add these routes? All other permissions, including openai-codex, remain unchanged. Remove unwanted routes in Subagent settings.', setupSaved: 'Saved. Start a new chat to apply permissions.', setupUnavailable: 'Subagent settings unavailable. Check the official Subagent plugin and refresh status.', setupReadOnly: 'Settings are read-only.', setupConflict: 'Settings changed concurrently. Refresh status and confirm again.', setupFailed: 'Could not save settings. Refresh status and confirm again.' })
-    Object.assign(copy.zh, { setupTitle: '子代理模型', setupReady: '已配置：所选账号的模型可用。', setupNeeded: '需要配置。', setupAction: '配置子代理', setupNewChats: '仅适用于新会话。子代理继承父会话选择的账号。', setupConfirm: '启用模型选择并添加这些路由？其他权限（包括 openai-codex）保持不变。可在 Subagent 设置中移除不需要的路由。', setupSaved: '已保存。请新建会话以应用权限。', setupUnavailable: '子代理设置不可用。请检查官方 Subagent 插件并刷新状态。', setupReadOnly: '设置为只读。', setupConflict: '设置已被其他操作修改。请刷新状态并重新确认。', setupFailed: '保存失败。请刷新状态并重新确认。' })
+    Object.assign(copy.ru, { setupTitle: 'Модели субагентов', setupReady: 'Настроено: доступны все 7 моделей ChatGPT.', setupNeeded: 'Требуется настройка.', setupAction: 'Настроить субагентов', setupNewChats: 'Применяется только к новым чатам. Субагенты наследуют выбранный аккаунт родителя.', setupConfirm: 'Включить выбор моделей и добавить эти 7 маршрутов? Остальные разрешения, включая openai-codex, сохранятся. Убрать ненужные маршруты можно в настройках Subagent.', setupSaved: 'Сохранено. Создайте новый чат, чтобы применить разрешения.', setupUnavailable: 'Настройки субагентов недоступны. Проверьте официальный плагин Subagent и обновите статус.', setupReadOnly: 'Настройки доступны только для чтения.', setupConflict: 'Настройки изменились параллельно. Обновите статус и подтвердите ещё раз.', setupFailed: 'Не удалось сохранить настройки. Обновите статус и повторите подтверждение.' })
+    Object.assign(copy.en, { setupTitle: 'Subagent models', setupReady: 'Configured: all 7 ChatGPT models available.', setupNeeded: 'Setup required.', setupAction: 'Set up subagents', setupNewChats: 'Applies only to new chats. Subagents inherit the parent’s selected account.', setupConfirm: 'Enable model selection and add these 7 routes? All other permissions, including openai-codex, remain unchanged. Remove unwanted routes in Subagent settings.', setupSaved: 'Saved. Start a new chat to apply permissions.', setupUnavailable: 'Subagent settings unavailable. Check the official Subagent plugin and refresh status.', setupReadOnly: 'Settings are read-only.', setupConflict: 'Settings changed concurrently. Refresh status and confirm again.', setupFailed: 'Could not save settings. Refresh status and confirm again.' })
+    Object.assign(copy.zh, { setupTitle: '子代理模型', setupReady: '已配置：全部 7 个 ChatGPT 模型可用。', setupNeeded: '需要配置。', setupAction: '配置子代理', setupNewChats: '仅适用于新会话。子代理继承父会话选择的账号。', setupConfirm: '启用模型选择并添加这 7 个路由？其他权限（包括 openai-codex）保持不变。可在 Subagent 设置中移除不需要的路由。', setupSaved: '已保存。请新建会话以应用权限。', setupUnavailable: '子代理设置不可用。请检查官方 Subagent 插件并刷新状态。', setupReadOnly: '设置为只读。', setupConflict: '设置已被其他操作修改。请刷新状态并重新确认。', setupFailed: '保存失败。请刷新状态并重新确认。' })
 
     function GptLinkSection({ t, remote }) {
       const { snapshot, error, pending, refresh, mutate } = useAccounts()
       const [label, setLabel] = React.useState('')
-      const [catalogAccountId, setCatalogAccountId] = React.useState(null)
-      const configuredAccounts = snapshot?.accounts.filter(account => account.configured) ?? []
-      const accountId = configuredAccounts.find(account => account.id === catalogAccountId)?.id ?? configuredAccounts[0]?.id
-      const catalog = useAccountCatalog(accountId, !!accountId)
       return h('div', { className: 'gl' },
         h('style', null, css + pickerCss), h('h2', { className: 'gl-heading' }, text(t, 'accounts')),
         h('p', { className: 'gl-intro' }, text(t, 'setupHint')),
@@ -1228,9 +1127,7 @@ window.__ModuleLoader__.load({
         !snapshot && !error ? h('p', null, text(t, 'loading')) : null,
         snapshot?.accounts.length === 0 ? h('p', { className: 'gl-note' }, text(t, 'emptyAccounts')) : null,
         snapshot?.accounts.map(account => h(AccountPanel, { key: account.id, t, account, pending, mutate })),
-        h('select', { className: 'gl-input', value: accountId ?? '', 'aria-label': text(t, 'chooseAccount'), onChange: event => setCatalogAccountId(event.target.value) }, configuredAccounts.map(account => h('option', { value: account.id, key: account.id }, account.label))),
-        h(ModelCatalogSettings, { key: accountId, t, accountId, catalog }),
-        h(SubagentSetup, { t, remote, catalog: catalog.loading ? null : catalog.data }))
+        h(SubagentSetup, { t, remote }))
     }
 
     function SessionAccountSelector({ t, sessionId, useSession }) {
@@ -1420,9 +1317,7 @@ window.__ModuleLoader__.load({
 @media(prefers-reduced-motion:reduce){.gl-fan-card{will-change:auto}}
 
 .gl-compact-tabs{display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:0 12px 8px;flex:none}
-.gl-new-chat-defaults{margin-left:auto;display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px;min-width:0;max-width:100%;font-size:11px;color:var(--dsw-alias-label-secondary);position:relative}
-.gl-new-chat-defaults>.gl-link{font-size:10px;line-height:15px;white-space:normal;text-align:left}
-.gl-new-chat-defaults>small{flex:1 1 100%;min-width:0;font-size:9px;line-height:14px;color:var(--dsw-alias-label-tertiary);overflow-wrap:anywhere}
+.gl-new-chat-defaults{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11px;color:var(--dsw-alias-label-secondary);cursor:pointer;position:relative}
 .gl-new-chat-defaults input{accent-color:var(--dsw-alias-state-business-primary);margin:0}
 .gl-new-chat-defaults input:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
 .gl-new-chat-defaults:has(input:disabled){opacity:.6;cursor:default}
@@ -1441,8 +1336,6 @@ window.__ModuleLoader__.load({
 .gl-model-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;flex:none}
 .gl-model-cell{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:4px;text-align:left;cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-primary);border-radius:8px;padding:7px 9px;font:inherit;font-size:12px;min-height:34px}
 .gl-model-cell>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.gl-picker-list .gl-model-cell[data-compatible=false]{height:auto;min-height:64px;flex-direction:column;align-items:stretch;justify-content:center;text-align:left;gap:3px}
-.gl-model-cell[data-compatible=false]>small{position:relative;z-index:1;font-size:9px;line-height:13px;overflow-wrap:anywhere;white-space:normal;color:var(--dsw-alias-label-secondary)}
 .gl-model-cell:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
 .gl-model-cell[aria-pressed=true]{border-color:var(--dsw-alias-state-business-primary);background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 8%,transparent)}
 .gl-model-cell .gl-active-badge{font-size:9px;padding:0 4px}.gl-model-cell .gl-active-badge::before{display:none}
@@ -1530,19 +1423,19 @@ window.__ModuleLoader__.load({
           currentId === account.id ? h('span', { className: 'gl-account-mini-active' }, text(t, 'activeAccount')) : null)))
     }
 
-    Object.assign(copy.ru, { defaultsDisable: 'Отключить для новых чатов', defaultsLabel: 'Для новых чатов', defaultsTitle: 'Сохранить этот аккаунт, текущую модель ChatGPT и уровень рассуждений только для будущих новых чатов', defaultsLoading: 'Загрузка настроек новых чатов…', defaultsError: 'Настройки новых чатов недоступны. Откройте виджет заново.', defaultsUnavailable: 'Выберите доступную модель ChatGPT и настроенный аккаунт.' })
-    Object.assign(copy.en, { defaultsDisable: 'Disable for new chats', defaultsLabel: 'For new chats', defaultsTitle: 'Save this account, current ChatGPT model and reasoning effort for future new chats only', defaultsLoading: 'Loading new chat defaults…', defaultsError: 'New chat defaults unavailable. Reopen the widget.', defaultsUnavailable: 'Select an available ChatGPT model and a configured account.' })
-    Object.assign(copy.zh, { defaultsDisable: '停用新会话默认设置', defaultsLabel: '用于新会话', defaultsTitle: '仅为未来新会话保存此账号、当前 ChatGPT 模型和推理强度', defaultsLoading: '正在加载新会话设置…', defaultsError: '新会话设置不可用，请重新打开选择器。', defaultsUnavailable: '请选择可用的 ChatGPT 模型和已配置账号。' })
+    Object.assign(copy.ru, { defaultsLabel: 'Для новых чатов', defaultsTitle: 'Сохранить этот аккаунт, текущую модель ChatGPT и уровень рассуждений только для будущих новых чатов', defaultsLoading: 'Загрузка настроек новых чатов…', defaultsError: 'Настройки новых чатов недоступны. Откройте виджет заново.', defaultsUnavailable: 'Выберите доступную модель ChatGPT и настроенный аккаунт.' })
+    Object.assign(copy.en, { defaultsLabel: 'For new chats', defaultsTitle: 'Save this account, current ChatGPT model and reasoning effort for future new chats only', defaultsLoading: 'Loading new chat defaults…', defaultsError: 'New chat defaults unavailable. Reopen the widget.', defaultsUnavailable: 'Select an available ChatGPT model and a configured account.' })
+    Object.assign(copy.zh, { defaultsLabel: '用于新会话', defaultsTitle: '仅为未来新会话保存此账号、当前 ChatGPT 模型和推理强度', defaultsLoading: '正在加载新会话设置…', defaultsError: '新会话设置不可用，请重新打开选择器。', defaultsUnavailable: '请选择可用的 ChatGPT 模型和已配置账号。' })
 
     function newChatCombo(current, nativeModels, account, reasoningEffort, tab) {
-      const nativeModel = current?.provider === 'chatgpt-session' && nativeModels.find(model => model.id === current.model && model.compatible === true)
+      const nativeModel = current?.provider === 'chatgpt-session' && nativeModels.find(model => model.id === current.model)
       if (tab !== 'gpt' || !nativeModel || !account?.configured || typeof reasoningEffort !== 'string' || !nativeModel.reasoning?.efforts?.some(level => level.id === reasoningEffort)) return null
       return { accountId: account.id, model: nativeModel.id, reasoningEffort }
     }
     function defaultsMatch(saved, combo) {
       return !!(saved?.enabled && combo && saved.accountId === combo.accountId && saved.model === combo.model && saved.reasoningEffort === combo.reasoningEffort)
     }
-    function NewChatDefaults({ open, combo, accountId, catalogData, disabled, t }) {
+    function NewChatDefaults({ open, combo, disabled, t }) {
       const [saved, setSaved] = React.useState(null)
       const [loading, setLoading] = React.useState(false)
       const [busy, setBusy] = React.useState(false)
@@ -1566,13 +1459,13 @@ window.__ModuleLoader__.load({
       const checked = defaultsMatch(saved, combo)
       // A missing saved account must not block explicitly replacing it with a valid preview.
       const unavailable = !saved || !combo
-      const change = async (auto = false, disable = false) => {
+      const change = async () => {
         const op = operation.current
-        if (!open || disabled || loading || failed || !op.controller || op.controller.signal.aborted || (disable ? !saved?.enabled : auto ? !accountId : unavailable) || op.locked) return
+        if (!open || disabled || loading || failed || unavailable || op.locked) return
         op.locked = true; setBusy(true); setFailed(false)
         const epoch = op.epoch, signal = op.controller.signal
         try {
-          const result = await request('api/chatgpt-defaults', disable ? { action: 'disable' } : auto ? { action: 'auto', accountId } : checked ? { action: 'disable' } : { action: 'save', ...combo }, signal)
+          const result = await request('api/chatgpt-defaults', checked ? { action: 'disable' } : { action: 'save', ...combo }, signal)
           if (epoch === op.epoch && !signal.aborted) setSaved(result)
         } catch {
           if (epoch === op.epoch && !signal.aborted) { setSaved(null); setFailed(true) }
@@ -1581,14 +1474,10 @@ window.__ModuleLoader__.load({
         }
       }
       const status = failed ? 'defaultsError' : loading ? 'defaultsLoading' : unavailable ? 'defaultsUnavailable' : 'defaultsTitle'
-      return h('div', { className: 'gl-new-chat-defaults', title: text(t, status) },
-        h('input', { type: 'checkbox', checked, 'aria-label': text(t, 'defaultsLabel'), disabled: !open || disabled || loading || busy || failed || unavailable, onChange: () => change(), 'aria-busy': loading || busy }),
+      return h('label', { className: 'gl-new-chat-defaults', title: text(t, status) },
+        h('input', { type: 'checkbox', checked, disabled: !open || disabled || loading || busy || failed || unavailable, onChange: change, 'aria-busy': loading || busy }),
         h('span', null, text(t, 'defaultsLabel')),
-        failed || loading ? h('span', { className: 'gl-defaults-status', role: failed ? 'alert' : 'status' }, text(t, status)) : null,
-        h('button', { type: 'button', className: 'gl-link', disabled: !open || disabled || loading || busy || failed || !accountId, onClick: () => change(true) }, text(t, 'defaultsAuto')),
-        saved ? h('small', { role: 'status' }, [saved.accountId, saved.model, saved.reasoningEffort, saved.selectionMode].filter(Boolean).join(' · ')) : null,
-        saved?.enabled ? h('button', { type: 'button', className: 'gl-link', disabled: !open || disabled || loading || busy || failed, onClick: () => change(false, true) }, text(t, 'defaultsDisable')) : null,
-        saved?.enabled && saved.model && !catalogData?.models?.some(model => model.id === saved.model) ? h('small', { role: 'status' }, saved.model + ' · ' + text(t, catalogData?.accountId === saved.accountId && catalogData?.freshness === 'fresh' ? 'catalogRemoved' : 'catalogUnknown')) : null)
+        failed || loading ? h('span', { className: 'gl-defaults-status', role: failed ? 'alert' : 'status' }, text(t, status)) : null)
     }
 
     function UnifiedPicker({ t, sessionId, useSession, directory, locked }) {
@@ -1617,13 +1506,12 @@ window.__ModuleLoader__.load({
       const [previewId, setPreviewId] = React.useState(null)
       const [otherProvider, setOtherProvider] = React.useState(null)
       const [commonEffort, setCommonEffort] = React.useState(null)
-      const [reasoningModelId, setReasoningModelId] = React.useState(null)
       const dialog = React.useRef(null), trigger = React.useRef(null), inFlight = React.useRef(false)
       const selectedId = snapshot?.sessionAccountId
       const accounts = snapshot?.accounts ?? []
       const selectedAccount = accounts.find(a => a.id === selectedId)
       const group = state.groups.find(g => g.id === state.current?.provider)
-      const currentModel = group?.models.find(m => m.id === state.current?.model) ?? (state.current?.model ? { id: state.current.model, name: state.current.model } : null)
+      const currentModel = group?.models.find(m => m.id === state.current?.model)
       const quotaText = card => !card || !card.windows?.length ? text(t, 'pickerUnknown') : card.windows.map(w => windowLabel(t, w) + ': ' + (Number.isFinite(w.usedPercent) ? text(t, 'remaining', { n: String(Math.round(Math.max(0, Math.min(100, 100 - w.usedPercent)))) }) : text(t, 'pickerUnknown'))).join(' · ') + (card.freshness === 'stale' ? ' ≈' : '')
       const loadQuota = React.useCallback(async (ids, force = false, signal) => {
         await Promise.all(ids.map(async id => {
@@ -1710,7 +1598,7 @@ window.__ModuleLoader__.load({
       }, [open, resetBusy])
       const close = () => { if (!inFlight.current && !resetBusy) { setOpen(false); trigger.current?.focus() } }
       const choose = async (account, provider, model) => {
-        if (busy || resetBusy || inFlight.current || (provider === 'chatgpt-session' && (catalog.data?.freshness !== 'fresh' || !model.compatible))) return
+        if (busy || resetBusy || inFlight.current) return
         inFlight.current = true; setSelecting(true); setError('')
         let changedAccount = false
         try {
@@ -1719,28 +1607,24 @@ window.__ModuleLoader__.load({
             changedAccount = true; accountsChanged(); await refresh()
           }
           const key = provider + '/' + model.id
-          const preferredEffort = model.id === reasoningModel?.id ? displayedEffort : undefined
+          const preferredEffort = displayedEffort
           const effort = model.reasoning?.efforts?.some(level => level.id === preferredEffort) ? preferredEffort : model.reasoning?.defaultEffort
           const result = await directory.select({ provider, model: model.id, ...(effort ? { reasoningEffort: effort } : {}) })
           if (!result.ok) throw new Error(result.error?.message ?? 'Selection failed')
-          // Keep the picker open so the user can inspect or save the selection.
+          setOpen(false); trigger.current?.focus()
         } catch (e) {
           setError((changedAccount ? text(t, 'pickerPartial') + ' ' : '') + (e.message ?? 'Selection failed'))
         } finally { inFlight.current = false; setSelecting(false) }
       }
-      const previewAccount = accounts.find(a => a.id === previewId) ?? selectedAccount ?? accounts[0]
-      const catalog = useAccountCatalog(previewAccount?.configured ? previewAccount.id : null, open)
-      const nativeModels = catalog.data?.models ?? []
-      React.useEffect(() => { if (catalog.data?.freshness === 'fresh') void directory.load().catch(e => setError(e.message)) }, [directory, catalog.data?.version, catalog.data?.checkedAt, catalog.data?.freshness])
+      const nativeModels = state.groups.find(g => g.id === 'chatgpt-session')?.models ?? []
       const otherGroups = state.groups.filter(g => g.id !== 'chatgpt-session')
+      const previewAccount = accounts.find(a => a.id === previewId) ?? selectedAccount ?? accounts[0]
       const previewGroup = otherGroups.find(g => g.id === otherProvider) ?? otherGroups.find(g => g.id === state.current?.provider) ?? otherGroups[0]
       const provider = tab === 'gpt' ? 'chatgpt-session' : previewGroup?.id
       const models = tab === 'gpt' ? nativeModels : previewGroup?.models ?? []
       const previewIsCurrent = tab === 'gpt' ? state.current?.provider === 'chatgpt-session' && previewAccount?.id === selectedId : state.current?.provider === provider
-      const reasoningModel = models.find(model => model.id === reasoningModelId) ?? models.find(model => previewIsCurrent && model.id === state.current?.model) ?? models[0]
-      const levels = reasoningModel?.reasoning?.efforts ?? []
-      const desiredEffort = commonEffort ?? (previewIsCurrent ? state.current?.reasoningEffort : undefined)
-      const displayedEffort = levels.some(level => level.id === desiredEffort) ? desiredEffort : reasoningModel?.reasoning?.defaultEffort
+      const levels = [...new Map(models.flatMap(m => m.reasoning?.efforts ?? []).map(level => [level.id, level])).values()]
+      const displayedEffort = commonEffort ?? (previewIsCurrent ? state.current?.reasoningEffort : undefined) ?? models[0]?.reasoning?.defaultEffort
       const visibleModels = models.filter(m => m.name.toLowerCase().includes(query.trim().toLowerCase()))
       const compactQuota = card => {
         const remaining = accountFill(card)
@@ -1767,7 +1651,7 @@ window.__ModuleLoader__.load({
               h('button', { type: 'button', className: 'gl-icon', 'aria-label': text(t, 'pickerRefresh'), 'aria-busy': refreshingAll, 'data-spin': refreshingAll ? 'true' : undefined, disabled: selecting || resetBusy || refreshingAll, onClick: async () => {
                 if(refreshAllLock.current)return
                 refreshAllLock.current=true;setRefreshingAll(true)
-                try { const ids=accounts.filter(a=>a.configured).map(a=>a.id); await Promise.all([catalog.refresh(),directory.load().catch(e=>setError(e.message)),refresh(),loadQuota(ids,true),loadResets(ids,true)]) }
+                try { const ids=accounts.filter(a=>a.configured).map(a=>a.id); await Promise.all([directory.load().catch(e=>setError(e.message)),refresh(),loadQuota(ids,true),loadResets(ids,true)]) }
                 finally {refreshAllLock.current=false;setRefreshingAll(false)}
               } }, RefreshIcon),
               h('button', { type: 'button', className: 'gl-icon', 'aria-label': text(t, 'pickerClose'), disabled: selecting || resetBusy, onClick: close }, '×')),
@@ -1775,7 +1659,7 @@ window.__ModuleLoader__.load({
             h('div', { className: 'gl-compact-tabs', role: 'group', 'aria-label': text(t, 'pickerTitle') },
               h('button', { type: 'button', 'aria-pressed': tab === 'gpt', disabled: resetBusy, onClick: () => { setTab('gpt'); setQuery(''); setCommonEffort(null) } }, 'ChatGPT'),
               h('button', { type: 'button', 'aria-pressed': tab === 'other', disabled: resetBusy, onClick: () => { setTab('other'); setQuery(''); setCommonEffort(null) } }, text(t, 'pickerTabOther')),
-              h(NewChatDefaults, { open, accountId: previewAccount?.configured ? previewAccount.id : null, catalogData: catalog.data, combo: newChatCombo(state.current, catalogCandidates(catalog.data), previewAccount, displayedEffort, tab), disabled: !!locked || selecting, t })),
+              h(NewChatDefaults, { open, combo: newChatCombo(state.current, nativeModels, previewAccount, displayedEffort, tab), disabled: !!locked || selecting, t })),
             busy ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'pickerBusy')) : null,
             accountError ? h('p', { className: 'gl-picker-info', role: 'alert' }, accountError) : !snapshot ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'loading')) : !accounts.length ? h('p', { className: 'gl-picker-info' }, text(t, 'pickerEmptyAccounts')) : null,
             error || state.error ? h('p', { className: 'gl-picker-info', role: 'alert' }, error || state.error) : null,
@@ -1785,17 +1669,15 @@ window.__ModuleLoader__.load({
                   onPreview: id => { setPreviewId(id); setQuery('') }, quotaText, compactQuota, quotas, selecting: selecting || resetBusy, t, orbLink, now, resets }),
                  previewAccount?.configured ? h(ResetMenu, { key: previewAccount.id, t, accountId: previewAccount.id, accountLabel: previewAccount.label, autoOpen: true, disabled: resetUnavailable || selecting, onBusyChange: setResetBusy, onConsumed: id => { void loadQuota([id], true); void loadResets([id], true) } }) : null)
                 : h('select', { className: 'gl-input gl-compact-provider', value: previewGroup?.id ?? '', 'aria-label': text(t, 'otherProvidersBlock'), onChange: e => { setOtherProvider(e.target.value); setCommonEffort(null); setQuery('') } }, otherGroups.map(g => h('option', { value: g.id, key: g.id }, g.name))),
-              models.length > 1 ? h('select', { className: 'gl-input', value: reasoningModel?.id ?? '', 'aria-label': text(t, 'pickerReasoning'), onChange: e => { setReasoningModelId(e.target.value); setCommonEffort(null) } }, models.map(model => h('option', { key: model.id, value: model.id }, model.name))) : null,
-               levels.length ? h('div', { className: 'gl-efforts', role: 'group', 'aria-label': text(t, 'pickerReasoning') },
+              levels.length ? h('div', { className: 'gl-efforts', role: 'group', 'aria-label': text(t, 'pickerReasoning') },
                 levels.map((level, index) => h(ResetChoiceCard, { className: 'gl-effort-button', type: 'button', key: level.id, disabled: busy || selecting || resetBusy, 'aria-pressed': displayedEffort === level.id, onClick: () => setCommonEffort(level.id) }, h(MiniCardOrb, { seed: index + 1 }), h('span', { className: 'gl-mini-label' }, level.name ?? level.id)))) : null,
-              tab === 'gpt' ? h(CatalogStatus, { t, catalog }) : null,
-               tab === 'gpt' && state.current?.provider === 'chatgpt-session' && !nativeModels.some(model => model.id === state.current.model) ? h('p', { className: 'gl-note' }, currentModel.name + ' · ' + text(t, catalog.data?.freshness === 'fresh' && previewAccount?.id === selectedId ? 'catalogRemoved' : 'catalogUnknown')) : null,
-               h('div', { className: 'gl-model-grid' }, visibleModels.map(model => {
+              h('div', { className: 'gl-model-grid' }, visibleModels.map(model => {
                 const active = previewIsCurrent && state.current?.model === model.id
-                return h(ResetChoiceCard, { type: 'button', className: 'gl-model-cell', key: model.id, 'aria-pressed': active, 'data-compatible': tab === 'gpt' ? String(model.compatible === true) : undefined,
-                  disabled: busy || selecting || resetBusy || (tab === 'gpt' && (!previewAccount?.configured || catalog.loading || catalog.data?.freshness !== 'fresh' || model.compatible !== true)),
+                const unsupportedEffort = !!model.reasoning?.efforts?.length && !!displayedEffort && !model.reasoning.efforts.some(level => level.id === displayedEffort)
+                return h(ResetChoiceCard, { type: 'button', className: 'gl-model-cell', key: model.id, 'aria-pressed': active,
+                  disabled: busy || selecting || resetBusy || unsupportedEffort || (tab === 'gpt' && !previewAccount?.configured),
                   title: model.name + ' · ' + (displayedEffort ?? ''), onClick: () => void choose(tab === 'gpt' ? previewAccount : null, provider, model) },
-                  h(MiniCardOrb, { seed: visibleModels.indexOf(model) + 5 }), h('span', { className: 'gl-mini-label' }, model.name), tab === 'gpt' && model.compatible !== true ? h('small', null, text(t, 'catalogTransport') + (model.reason ? ' · ' + model.reason : '')) : null)
+                  h(MiniCardOrb, { seed: visibleModels.indexOf(model) + 5 }), h('span', { className: 'gl-mini-label' }, model.name))
               })),
               !visibleModels.length ? h('p', { className: 'gl-note', role: 'status' }, text(t, state.status === 'loading' ? 'pickerLoad' : query ? 'pickerNoResults' : 'pickerEmptyModels')) : null,
               null))))

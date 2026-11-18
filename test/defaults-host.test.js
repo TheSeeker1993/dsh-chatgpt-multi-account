@@ -38,19 +38,6 @@ test('apply binds exact default before synchronous selection and preserves exist
   assert.equal(f.selections.length, 1)
 })
 
-test('captured creation choice remains immutable while waiting to bind', async () => {
-  const f = fixture(), mutable = { ...choice }
-  let release, entered
-  const ready = new Promise(resolve => { entered = resolve })
-  f.accounts.exclusive = async fn => { entered(); await new Promise(resolve => { release = resolve }); return fn() }
-  const pending = applyChatDefaults({ snapshot: async () => mutable }, f.accounts, f.agent)
-  await ready
-  mutable.model = 'gpt-9-sol'; mutable.reasoningEffort = 'high'
-  release(); await pending
-  assert.equal(f.selections[0].model, choice.model)
-  assert.equal(f.selections[0].reasoningEffort, choice.reasoningEffort)
-})
-
 test('disabled or unavailable defaults never fallback to another account', async () => {
   const f = fixture()
   await applyChatDefaults({ snapshot: async () => ({ ...choice, enabled: false }) }, f.accounts, f.agent)
@@ -79,7 +66,7 @@ test('in-flight authorization rejects without selection or binding', async () =>
   assert.equal(f.bindings.size, 0)
 })
 
-function endpoint(defaults = { snapshot: async () => choice, save: async body => ({ saved: body.accountId }), disable: async () => ({ enabled: false }), enableAuto: async body => ({ auto: body.accountId }) }) {
+function endpoint(defaults = { snapshot: async () => choice, save: async body => ({ saved: body.accountId }), disable: async () => ({ enabled: false }) }) {
   let route
   installDefaultsEndpoint({ connection: { fetch: { register: value => { route = value } } } }, defaults)
   const request = (method = 'GET', body, headers = {}) => route.fetch(new Request('http://dsh.internal/api/chatgpt-defaults', { method, ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }), headers }))
@@ -97,7 +84,6 @@ test('endpoint GET is no-store and synthetic-origin POST needs only correct secr
   const disable = await e.request('POST', { action: 'disable' }, { ...headers, 'sec-fetch-site': 'same-origin' })
   assert.deepEqual(await disable.json(), { enabled: false })
   assert.equal(disable.headers.get('cache-control'), 'no-store')
-  assert.deepEqual(await (await e.request('POST', { action: 'auto', accountId: 'a' }, headers)).json(), { auto: 'a' })
 })
 
 test('endpoint rejects missing, foreign-instance, malformed and cross-site CSRF tokens', async () => {
@@ -130,14 +116,14 @@ test('installed listener captures identity before await and uses separate defaul
   f.accounts.accounts = new Map([['a', { createdAt: 1 }]])
   f.accounts.removing = new Set()
   f.accounts.credentials.describeRecord = async () => { await waiting; return { configured: true } }
-  const schema = { boolean: () => ({}), string: () => ({ nullable: () => ({}) }), enum: () => ({ optional: () => ({}) }), object: value => value }
+  const schema = { boolean: () => ({}), string: () => ({ nullable: () => ({}) }), object: value => value }
   const ctx = {
     loader: { import: async name => name === 'zod' ? { z: schema } : { defineDomain: x => x, domainTable: x => x } },
     storageDomain: { open: async spec => { opened = spec; return { table: () => ({ get: key => rows.get(key), put: async (key, value) => rows.set(key, value) }), close: async () => {} } } },
     effect: () => {}, on: (name, fn) => { assert.equal(name, 'agent/created'); listener = fn },
     connection: { fetch: { register: () => {} } },
   }
-  await installChatDefaults(ctx, f.accounts, { available: async () => ({ reasoning: true, thinkingLevelMap: { low: 'low' } }) })
+  await installChatDefaults(ctx, f.accounts)
   assert.equal(opened.name, 'chatgpt_defaults'); assert.equal(opened.version, 1)
   const pending = listener({ agent: f.agent, source: 'startup' })
   f.agent.session.firstLiveSeq = 9 // Simulate mutable test state changing after the synchronous guard.

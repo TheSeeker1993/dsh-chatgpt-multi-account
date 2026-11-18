@@ -1,17 +1,5 @@
 # Changelog
 
-## 0.5.0-preview.7
-
-- Added account-scoped native OAuth discovery with GET `/backend-api/codex/models`, without inference. The supported catalog contract is pinned to Codex 0.166.0, SHA `6ff1e1ca3b30fc8b914720681fcf5fe62e95f856`; this does not claim full new Codex transport support.
-- Five-minute account/identity cache, deduplicated reads, backoff and explicit stale/error status. The picker checks on open, account preview and every five minutes while open, with manual retry. Previously selected unavailable models remain visible without automatic replacement.
-- Removed the production static model whitelist; deprecated `MODEL_IDS` is historical only. Global known-model metadata does not establish entitlement: dispatch checks availability for the actual acquired account. Per-model reasoning/input/output capabilities remain intact, including text-only Spark.
-- Server-announced models with unknown/unsupported transport remain visible but disabled. GPT‑6.2 returned by the server is incompatible with the current Responses Lite/code-mode-only requirements, not silently hidden or enabled.
-- Explicit manual metadata/import sources remain unverified and never import auth or transport settings. Subagent candidates follow the catalog; permission expansion still requires explicit confirmation and preserves other routes.
-- Missing defaults start in `auto-latest-sol`: numeric versions (6.10 > 6.2), same account, available compatible Sol only. User-pinned and legacy defaults without provenance, including disabled settings, are preserved. Returning to auto requires a separate explicit action. Discovery never asynchronously changes an existing chat.
-- Model selection keeps the picker open; explicit outside click, Escape, close button or trigger toggle still dismiss it.
-- Hosted search remains fixed to `gpt-6.1-sol` / low; account isolation, leases, replay, manual-reset confirmations, authorship and licenses are preserved.
-- Validation: 215 synthetic tests passed (0 failed/skipped); portable `contract` ran both installed-runtime smoke scripts on Electron 44.7.0 / DSH rc.3, with catalog HTTP strictly mocked. `typecheck`, `build`, whitespace and dry-run packaging checks passed. No live inference, profile installation or live visual verification is claimed. Version numbering alone does not establish publication.
-
 ## 0.5.0-preview.6
 
 - Added the “For new chats” checkbox to persist account/model/reasoning defaults. Initial selection is the first configured account with GPT‑6.1 Sol / low; clearing the checkbox persistently disables initialization.

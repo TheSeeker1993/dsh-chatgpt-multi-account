@@ -1,6 +1,6 @@
-# Передача проекта · 18.11.2026
+# Передача проекта · 17.11.2026
 
-Рабочая версия: **0.5.0-preview.7**. Статус публикации подтверждается отдельно после push; номер версии сам по себе не означает публикацию.
+Рабочая версия: **0.5.0-preview.6**. Статус публикации подтверждается отдельно после push; номер версии сам по себе не означает публикацию.
 
 ## Что это
 Самостоятельный community-плагин DSH: несколько ChatGPT OAuth-аккаунтов, явный выбор аккаунта для каждой сессии, изолированные параллельные запросы, квоты и ручные сбросы Codex. Основной репозиторий: https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account (upstream Clukay-Fun/dsh-gpt-link); GitHub qixxby/dsh-chatgpt-multi-account — историческое зеркало. Статус удалённого релиза не выводить из локальных файлов. `.git` и незакоммиченные изменения сохранены; автоматического push нет.
@@ -34,7 +34,7 @@
 - Storage domain `chatgpt_accounts` v1: `accounts[id]={label,createdAt}`, `sessions[sessionId]={accountId}`.
 - `legacy` использует исходную запись `llm-pi-ai/openai-codex`; именованные — `dsh-gpt-link/account-<uuid>`. Формат native grant, секреты остаются в DSH Credentials. Не менять ключи при переносе.
 - `openai-codex` — внутренняя/legacy модель; session-aware route — `chatgpt-session`. Не подменять глобальный токен. Нет ambient fallback, автопереключения и балансировки.
-- Привязка хранится долговечно. Встроенные subagents наследуют родителя один раз. Новые обычные чаты получают snapshot сохранённых account/model/reasoning defaults; только отсутствующая настройка начинает с auto-latest-sol для первого подключённого аккаунта. Ручные и неоднозначные legacy-настройки не заменять. Старые/resume/forks не переключаются, forks требуют выбора. При недоступном default не выбирать другой аккаунт.
+- Привязка хранится долговечно. Встроенные subagents наследуют родителя один раз. По явной просьбе пользователя новые обычные чаты получают сохранённые account/model/reasoning defaults; первоначально первый подключённый аккаунт + gpt-6.1-sol low. Старые/resume/forks не переключаются, forks требуют выбора. При недоступном default не выбирать другой аккаунт.
 - Ребинд, relogin и удаление запрещены при active lease/running session/authorization. По явной просьбе пользователя ручной расход сбросов разрешён при active lease/running session, но не при authorization. Сброс использует тот же `Accounts.exclusive`, проверку аккаунта/identity и два подтверждения; не вызывает assertIdle и не меняет lease/binding. Остальные операции сохраняют assertIdle. Второй независимый Accounts для расхода небезопасен.
 - Replay привязан к локальному и issuer account IDs; при смене аккаунта удалять чужие replay IDs. Текст истории при этом остаётся.
 
@@ -57,29 +57,17 @@ Preview аккаунта не применяет сессию: применен�
 
 ## Defaults для новых чатов
 
-`multi/defaults.js` хранит enabled/accountId/model/reasoningEffort и provenance отдельно от credentials в `chatgpt_defaults` v1/preferences/default. `chatgpt_accounts` v1 и его binding не мигрируются. Только отсутствующая запись получает `auto-latest-sol`: первый configured аккаунт и новейшая подтверждённая совместимая Sol по числовым компонентам (6.10 > 6.2), без ранжирования неизвестных aliases. Ошибка/отсутствие Sol не разрешает угадывать или менять аккаунт. Явное сохранение/отключение — `user-pinned`; существующая запись без режима — `legacy-preserved`, даже если совпадает с прежней заводской моделью или отключена. Возврат в auto — отдельное явное действие. Обновление auto влияет только на будущие чаты; создание захватывает согласованный snapshot, завершение discovery не переключает уже созданные чаты. Сохранение defaults — только метаданные, разрешено при работающем чате; оно не меняет модель/привязку текущего чата.
+`multi/defaults.js` хранит enabled/accountId/model/reasoningEffort отдельно от credentials в `chatgpt_defaults` v1/preferences/default. `chatgpt_accounts` v1 и его binding не мигрируются. Инициализация выбирает первый configured аккаунт, явное отключение сохраняется и не переинициализируется. Сохранение defaults — только метаданные, разрешено при работающем чате; оно не меняет модель/привязку текущего чата.
 
 `multi/defaults-host.js`: owner-auth HTTP GET/POST `/api/chatgpt-defaults`, no-store GET выдаёт случайный CSRF token, POST требует `x-chatgpt-defaults-csrf`; synthetic origin не сравнивать с GUI. `agent/created` serial hook проверяет source=startup, immutable firstLiveSeq=0, isSeeded=false, origin/parentSession отсутствуют и depth=0 до await. Затем тот же Accounts.exclusive сохраняет точную привязку и `agent.model.select` для нового чата до допуска запросов. Существующую binding не менять, при ошибке выбора удалить только новую binding. Resume/clear/compact/forks/subagents исключены. Недоступный default — ошибка без fallback.
 
-Исторические проверки defaults для preview.6: suite 165/165 и оба installed-runtime smoke; это не результаты интеграции preview.7. Итоговые проверки новой версии фиксировать после общего прогона, без преждевременного числа тестов.
+Проверки доработки defaults: полный suite 165/165, оба installed-runtime smoke, git diff --check и npm pack --dry-run пройдены; без реальных запросов и без подтверждённого live UI.
 
 UI чекбокс «Для новых чатов» отмечен только для совпадающей сохранённой комбинации. На других провайдерах/без настроенного аккаунта сохранение не угадывает модель; загрузка UI не выполняет POST. Новый выбор/снятие флажка влияют только на будущие обычные чаты.
 
-## Каталог моделей
-
-`multi/catalog.js` — единый resolver/discovery, `multi/catalog-host.js` — owner-auth API metadata/freshness/manual/import без секретов. Native OAuth GET `https://chatgpt.com/backend-api/codex/models?client_version=0.166.0` не делает inference. Поддерживаемый контракт каталога закреплён на Codex 0.166.0, SHA `6ff1e1ca3b30fc8b914720681fcf5fe62e95f856`; не выдавать это за полную поддержку нового Codex transport.
-
-Кэш 5 минут — per-account identity, с инвалидированием при смене principal/logout/delete, дедупликацией, timeout/schema bounds и backoff. Ошибка сохраняет last-known-good как stale, не подменяет account view bundled каталогом. UI запускает свежую проверку при открытии, preview другого аккаунта и каждые 5 минут открытого виджета; есть время проверки и retry. При восстановлении безопасное чтение повторяется. На старте проверяется аккаунт новых чатов.
-
-Глобальные known models — metadata, НЕ entitlement. Перед dispatch проверять availability именно фактически acquired `lease.accountId`; metadata prepareCall без account context не подтверждает доступ. Не добавлять fallback. Production static whitelist отсутствует; deprecated `MODEL_IDS` — исторический export, не validator. Metadata и delegates используют согласованный snapshot; in-flight запрос не перезапускается при обновлении. Per-model reasoning/input/output limits сохраняются; Spark text-only.
-
-Server-announced unknown/incompatible transport показывать отключённым с причиной. GPT-6.2 Astra/Sol при возврате сервером остаются несовместимыми из-за Responses Lite/code_mode_only: не скрывать их и не придумывать capabilities. Ранее сохранённый недоступный выбор показывать отдельно; network/stale не доказывает отзыв доступа и не разрешает замену.
-
-Ручные metadata/явный импорт `openai-codex` имеют источник и статус unverified; не импортировать credentials, auth, headers, endpoint или транспорт. Subagent candidates берутся из каталога, разрешения сами не расширяются. Поисковый helper остаётся `gpt-6.1-sol` low. Итоговые проверки preview.7: 215 synthetic tests passed, 0 failed/skipped; переносимый contract выполнил оба installed-runtime smoke на Electron 44.7.0/DSH rc.3 с синтетическим catalog GET, typecheck/build/git diff --check/pack dry-run пройдены. Live inference, установка в профиль и live visual verification не подтверждены.
-
 ## Настройка моделей субагентов
 
-В настройках ChatGPT Link добавлен блок статуса и кнопка «Настроить субагентов». Установка и чтение статуса не изменяют разрешения. После показа актуальных точных маршрутов из каталога и отдельного подтверждения клиент использует `remote.settings.describe()` / `mutate('subagent-model-selection-settings', ops, revision)` (проверено по исходникам DSH 0.2.2-rc.3). Свежий read, union существующих `allowedModels` с явно подтверждёнными `chatgpt-session` маршрутами, включение `enabled`, optimistic revision и контрольный read. Остальные разрешения сохраняются, включая `openai-codex`; удаляются пользователем только через официальный UI. Конфликт не ретраится. Ошибки/read-only не выдают ложный успех. Настройка действует только на новые чаты; профиль вручную не редактировать.
+В настройках ChatGPT Link добавлен блок статуса и кнопка «Настроить субагентов». Установка и чтение статуса не изменяют разрешения. После показа семи точных маршрутов и отдельного подтверждения клиент использует `remote.settings.describe()` / `mutate('subagent-model-selection-settings', ops, revision)` (проверено по исходникам DSH 0.2.2-rc.3). Свежий read, union существующих `allowedModels` с семью `chatgpt-session` маршрутами, включение `enabled`, optimistic revision и контрольный read. Остальные разрешения сохраняются, включая `openai-codex`; удаляются пользователем только через официальный UI. Конфликт не ретраится. Ошибки/read-only не выдают ложный успех. Настройка действует только на новые чаты; профиль вручную не редактировать.
 
 ## Поиск по фактическому маршруту
 
@@ -102,4 +90,4 @@ npm run build
 ```
 Полный suite версии 0.5.0-preview.5: 143 passed, 0 failed/skipped. Прежние 105 тестов и 38 дополнительных проверяют account isolation, busy/leases, auth, quotas, replay, confirmations, CSRF и поиск. Оба installed-runtime smoke прошли на Electron 44.7.0 / DSH rc.3: интеграция Host entry, native API DeepSeek и настоящий native Models с синтетическим некооперативным OAuth refresh, без сети/секретов профиля. git diff --check и npm pack --dry-run прошли. Реальные GET списка credits успешно проверялись для четырёх аккаунтов; реальный consume НЕ выполнялся. Визуальная оценка опирается на скриншоты пользователя и source-review; последнее размещение виджета/темы/focus в живом DSH браузере не подтверждено (browser ранее требовал авторизацию). Тесты не заменяют эту проверку.
 
-Пользователь явно разрешил доработку и публикацию в основной GitFlic («доработай и залей»). Перед push обновить версию/CHANGELOG, прогнать secret scan и pack/test; факт публикации подтверждать ответом GitFlic, не номером версии. Установка/проверка профиля и live inference этим не подтверждаются. Не переносить `.dsh`, credentials, OAuth exports или личные account labels в репозиторий. Для запуска на другом компьютере пользователь входит в аккаунты заново.
+Перед публикацией в основной GitFlic-репозиторий обновить версию/CHANGELOG/скриншоты, прогнать secret scan и pack/test, запросить разрешение на push. Не переносить `.dsh`, credentials, OAuth exports или личные account labels в репозиторий. Для запуска на другом компьютере пользователь входит в аккаунты заново.
