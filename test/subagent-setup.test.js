@@ -21,7 +21,7 @@ function loadSetup(react = { createElement() { return null } }) {
   assert.equal(typeof definition?.factory, 'function')
   definition.factory(name => {
     assert.equal(name, 'react')
-    return react
+    return { createContext: value => ({ value }), ...react }
   })
   return context.__setup
 }

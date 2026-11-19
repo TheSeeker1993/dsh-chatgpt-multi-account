@@ -14,7 +14,7 @@ function fixture(overrides = {}) {
     setSelecting() {}, setError: value => errors.push(value), setCommonEffort: value => drafts.push(value),
     ...overrides,
   })
-  const handler = source.slice(source.indexOf('      const changeEffort ='), source.indexOf('      const visibleModels ='))
+  const handler = source.slice(source.indexOf('      const changeEffort ='), source.indexOf('      const filter = query'))
   vm.runInContext(handler + '\nglobalThis.change = changeEffort', context)
   return { context, calls, drafts, errors }
 }

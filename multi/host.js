@@ -1,6 +1,7 @@
 import { Accounts, AccountError } from './accounts.js'
 import { createAccountServices } from './auth.js'
-import { installRouting } from './routing.js'
+import { installRouting, MODEL_IDS } from './routing.js'
+import { createCatalogRegistry } from './catalog-registration.js'
 import { installResetEndpoint } from './reset-host.js'
 import { installChatDefaults } from './defaults-host.js'
 import { installCatalogReport } from './catalog-report.js'
@@ -25,9 +26,10 @@ export async function installMultiAccount(ctx, config) {
   ctx.effect(() => () => { services?.dispose(); return accounts.close() }, 'dsh-gpt-link: accounts')
   await accounts.initialize()
   services = await createAccountServices(ctx, accounts, config.cacheTtlMs)
-  await installRouting(ctx, accounts)
+  const catalogRegistry = createCatalogRegistry(MODEL_IDS)
+  await installRouting(ctx, accounts, catalogRegistry)
   await installChatDefaults(ctx, accounts)
-  await installCatalogReport(ctx, accounts)
+  await installCatalogReport(ctx, accounts, catalogRegistry)
   installResetEndpoint(ctx, accounts, { onConsumed: id => services.entry(id).quota.forget() })
   function register(path, handle) {
     ctx.connection.fetch.register({ path, methods: ['GET', 'POST'], requestBody: 'buffered',

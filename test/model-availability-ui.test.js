@@ -15,6 +15,7 @@ function fixture(fetch) {
   const slots = [], effects = []
   let cursor = 0, definition, now = 1000
   const React = {
+    createContext(value) { return { value } },
     createElement() { return null },
     useRef(initial) { const i = cursor++; return slots[i] ??= { current: initial } },
     useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], v => { slots[i] = typeof v === 'function' ? v(slots[i]) : v }] },
@@ -23,10 +24,10 @@ function fixture(fetch) {
   const context = vm.createContext({ window: { __ModuleLoader__: { load(v) { definition = v } } }, EventTarget, Event, AbortController, fetch, Date: { now: () => now } })
   const marker = '    function UnifiedPicker('
   assert.equal(source.split(marker).length, 2)
-  vm.runInContext(source.replace(marker, '    globalThis.helpers = {useAvailableModelIds, filterAvailableModels};\n' + marker), context)
+  vm.runInContext(source.replace(marker, '    globalThis.helpers = {useAvailableCatalog, invalidateCatalog, filterAvailableModels};\n' + marker), context)
   definition.factory(() => React)
   return { ...context.helpers,
-    render(enabled = true, accountId = 'a', configured = true) { cursor = 0; const ids = context.helpers.useAvailableModelIds(enabled, accountId, configured); effects.splice(0).forEach(effect => effect()); return ids },
+    render(enabled = true, accountId = 'a', configured = true) { cursor = 0; const ids = context.helpers.useAvailableCatalog(enabled, accountId, configured).ids; effects.splice(0).forEach(effect => effect()); return ids },
     advance(ms) { now += ms },
     unmount() { slots.forEach(slot => slot?.cleanup?.()) },
   }
@@ -49,8 +50,8 @@ test('closed, other tab, unconfigured and missing accounts never request; open G
   assert.equal(calls[0].options.credentials, 'same-origin')
   assert.deepEqual(ids(g.render(true, 'preview / account')), [extensions[0]])
   g.unmount()
-  assert.equal(calls[0].options.signal.aborted, true)
-  assert.match(source, /useAvailableModelIds\(open && tab === 'gpt', previewAccount\?\.id, previewAccount\?\.configured\)/)
+  assert.equal(calls[0].options.signal.aborted, false)
+  assert.match(source, /useAvailableCatalog\(open && tab === 'gpt', previewAccount\?\.id, previewAccount\?\.configured\)/)
   assert.match(source, /previewIsCurrent \? state\.current\?\.model : null/)
 })
 
@@ -67,34 +68,37 @@ test('only three extensions are filtered; visibility alone decides availability,
   f.unmount()
 })
 
-test('per-account five-minute TTL and valid report completely replace prior IDs; failed/invalid refresh preserves cache', async () => {
-  const calls = [], replies = [listed(...extensions), listed(extensions[1]), { models: [] }, report([null]), Error('offline'), { ...listed(), error: 'CATALOG_HTTP' }, listed()]
+test('successful responses persist for the window lifetime; invalidated lookups can retry after errors', async () => {
+  const calls = [], replies = [listed(...extensions), Error('offline'), listed(extensions[1])]
   const f = fixture(async (_path, options) => { calls.push(options); const reply = replies.shift(); if (reply instanceof Error) throw reply; return response(reply) })
   f.render(); await settle()
-  const reopen = () => { f.render(false); return f.render() }
-  f.advance(299999); reopen(); await settle(); assert.equal(calls.length, 1)
-  f.advance(1); reopen(); await settle()
+  f.advance(3600000); f.render(false); assert.deepEqual(ids(f.render()), extensions)
+  assert.equal(calls.length, 1)
+  f.invalidateCatalog('a'); await settle()
+  assert.deepEqual(ids(f.render()), [])
+  f.render(false); f.render(); await settle()
   assert.deepEqual(ids(f.render()), [extensions[1]])
-  f.advance(300000)
-  for (let i = 0; i < 4; i++) { reopen(); await settle(); assert.deepEqual(ids(f.render()), [extensions[1]]) }
-  reopen(); await settle(); assert.deepEqual(ids(f.render()), [])
-  assert.ok(calls.every(options => options.method === 'GET' && options.body === undefined))
   f.unmount()
 })
 
-test('account switch immediately returns own Set, aborts old request and ignores late completion; caches are per component', async () => {
+test('account switch isolates late responses, remount reuses cache, invalidation aborts pending work', async () => {
   const pending = []
   const f = fixture((path, options) => new Promise(resolve => pending.push({ path, options, resolve })))
   f.render(true, 'a')
+  f.render(false, 'a'); f.render(true, 'a')
+  assert.equal(pending.length, 1)
   assert.deepEqual(ids(f.render(true, 'b')), [])
-  assert.equal(pending[0].options.signal.aborted, true)
+  assert.equal(pending[0].options.signal.aborted, false)
   pending[1].resolve(response(listed(extensions[1]))); await settle()
   assert.deepEqual(ids(f.render(true, 'b')), [extensions[1]])
   pending[0].resolve(response(listed(extensions[0]))); await settle()
   assert.deepEqual(ids(f.render(true, 'b')), [extensions[1]])
-  assert.deepEqual(ids(f.render(true, 'a')), [])
-  f.unmount(); assert.equal(pending[2].options.signal.aborted, true)
+  assert.deepEqual(ids(f.render(true, 'a')), [extensions[0]])
+  f.invalidateCatalog('a')
+  f.unmount(); f.invalidateCatalog('a')
+  assert.equal(pending[2].options.signal.aborted, true)
   pending[2].resolve(response(listed(...extensions))); await settle()
+  assert.deepEqual(ids(f.render(false, 'a')), [])
   const g = fixture(async () => response(listed()))
   assert.deepEqual(ids(g.render(false, 'b')), [])
   g.unmount()

@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { Resets, ResetError } from './resets.js'
 
 /** User-only HTTP action surface. Intentionally no agent-tool registration. */
@@ -36,11 +36,6 @@ export function installResetEndpoint(ctx, accounts, { onConsumed = () => {} } = 
         else if (body.action === 'advance') result = await resets.advance(id, body.nonce)
         else if (body.action === 'cancel') result = await resets.abort(id, body.nonce)
         else if (body.action === 'consume') {
-          // Fixed confirmation phrase, not a substitute for owner authentication.
-          const expected = Buffer.from('f286a4a34dfbb7ee85614f961a6f57003e78c9d42934b40f835122b00ad46c01', 'hex')
-          if (typeof body.password !== 'string' || !timingSafeEqual(createHash('sha256').update(body.password).digest(), expected)) {
-            throw new ResetError('RESET_PASSWORD_INVALID')
-          }
           result = await resets.consume(id, body.nonce)
           // Even an unknown response may have changed upstream quota; drop local cache.
           await onConsumed(id, result)

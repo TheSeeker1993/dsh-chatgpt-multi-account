@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0-preview.10
+
+- Simplify the default picker: show quota bars for one account or compact cards for multiple accounts. Mark GPT‑6.2 Sol as recommended.
+- Add an optional developer view with a local interface unlock (not an authentication boundary). Manual resets retain two separate confirmations without a password prompt.
+- Warm the account-scoped model catalog on client startup, share it across chats in the window, and reserve space for the three catalog-gated models. Admit additional models only with explicit compatible transport metadata.
+- Use GPT‑6.2 Sol with low reasoning as the first-use default without overriding saved preferences.
+
 ## 0.5.0-preview.9
 
 - Keep the picker open after selecting a model, save supported reasoning levels immediately, and show the original level IDs.

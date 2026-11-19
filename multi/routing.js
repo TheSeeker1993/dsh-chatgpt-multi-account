@@ -56,16 +56,16 @@ function nativeRequest(options, accountId) {
 }
 
 /** Immutable common catalog: account identity affects authentication, never model capabilities. */
-export function commonProfiles(nativeProvider, resolveRetryPolicy) {
+export function commonProfiles(nativeProvider, resolveRetryPolicy, registered = []) {
   const catalog = nativeProvider.getModels()
-  const models = Object.freeze(MODEL_IDS.map(id => {
+  const models = Object.freeze([...MODEL_IDS.map(id => {
     const found = catalog.find(model => model.id === id) ?? extensionModel(catalog, id)
     if (!found) throw failure('UNKNOWN_MODEL', `Bundled Codex catalog lacks required model ${id}`)
     return Object.freeze({
       ...found,
       thinkingLevelMap: Object.freeze({ off: null, minimal: null, low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: null }),
     })
-  }))
+  }), ...registered])
   const provider = Object.freeze({
     ...nativeProvider,
     getModels: () => models,
@@ -90,7 +90,7 @@ export function commonProfiles(nativeProvider, resolveRetryPolicy) {
 }
 
 /** Dependency injection keeps routing/lease behavior testable without importing the Host runtime. */
-export function createRoutingAdapter({ LlmAdapter, metadataAdapter, makeAccountAdapter }, accounts) {
+export function createRoutingAdapter({ LlmAdapter, metadataAdapter, makeAccountAdapter, registry }, accounts) {
   const delegates = new Map()
   const delegateFor = id => {
     if (typeof id !== 'string' || !id) throw failure('SESSION_ACCOUNT_REQUIRED', 'Select a ChatGPT account for this session')
@@ -102,6 +102,8 @@ export function createRoutingAdapter({ LlmAdapter, metadataAdapter, makeAccountA
     providerRetryPolicy() { return metadataAdapter.providerRetryPolicy(NATIVE_PROVIDER) }
     imageRequestTarget(_provider, model, image) { return metadataAdapter.imageRequestTarget(NATIVE_PROVIDER, model, image) }
     async listModels() {
+      // DSH selectModel requires the ID in this account-less list. Only sanitized
+      // profiles are advertised here; authorization is verified under a lease.
       return (await metadataAdapter.listModels(NATIVE_PROVIDER)).map(model => ({ ...model, provider: SESSION_PROVIDER }))
     }
     async resolveModel(_provider, model, signal) {
@@ -123,6 +125,9 @@ export function createRoutingAdapter({ LlmAdapter, metadataAdapter, makeAccountA
         : { accountId: await accounts.resolveSession(options.sessionId), release() {} }
       try {
         options.signal?.throwIfAborted()
+        if (registry?.has(options.model) && !registry.allowed(lease.accountId, lease.replayIdentity, options.model)) {
+          throw failure('UNKNOWN_MODEL', 'Catalog model is not confirmed for the bound ChatGPT account')
+        }
         const adapter = delegateFor(lease.accountId)
         const prepared = await adapter.prepareCall(NATIVE_PROVIDER, options.model, options.signal)
         options.signal?.throwIfAborted()
@@ -145,17 +150,25 @@ export function createRoutingAdapter({ LlmAdapter, metadataAdapter, makeAccountA
 }
 
 /** Install a separate route; the existing openai-codex adapter and its grant remain untouched. */
-export async function installRouting(ctx, accounts) {
+export async function installRouting(ctx, accounts, registry) {
   const [{ LlmAdapter, resolveRetryPolicy, resolveImageAttachmentAccess }, { PiAiAdapter }, { openaiCodexProvider }] = await Promise.all([
     ctx.loader.import('@deepseek-ai/dsh-llm'),
     ctx.loader.import('@deepseek-ai/dsh-llm-pi-ai'),
     ctx.loader.import('@earendil-works/pi-ai/providers/openai-codex'),
   ])
-  const profiles = commonProfiles(openaiCodexProvider(), resolveRetryPolicy)
+  const nativeProvider = openaiCodexProvider()
+  let profiles = commonProfiles(nativeProvider, resolveRetryPolicy), version = registry?.version
+  const currentProfiles = () => {
+    if (version !== registry?.version) {
+      profiles = commonProfiles(nativeProvider, resolveRetryPolicy, registry.models())
+      version = registry.version
+    }
+    return profiles
+  }
   // Never discover another account's ambient environment credentials.
   const authContext = { env: async () => undefined, fileExists: async () => false }
   const makeAccountAdapter = credentials => new PiAiAdapter({
-    profiles: () => profiles,
+    profiles: currentProfiles,
     resolveApiKey: async () => undefined,
     auth: { credentials, authContext },
     resolveAttachments: () => ctx.get('attachments'),
@@ -168,6 +181,6 @@ export async function installRouting(ctx, accounts) {
     modify: async () => { throw failure('NO_CREDENTIAL_STORE', 'Catalog does not authenticate') },
     delete: async () => { throw failure('NO_CREDENTIAL_STORE', 'Catalog does not authenticate') },
   })
-  const adapter = createRoutingAdapter({ LlmAdapter, metadataAdapter, makeAccountAdapter }, accounts)
+  const adapter = createRoutingAdapter({ LlmAdapter, metadataAdapter, makeAccountAdapter, registry }, accounts)
   return ctx.llm.registerAdapter([SESSION_PROVIDER], adapter)
 }

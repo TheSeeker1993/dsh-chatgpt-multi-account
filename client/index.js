@@ -283,6 +283,12 @@ window.__ModuleLoader__.load({
     const RefreshIcon = h('svg', { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
       h('path', { d: 'M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round', strokeLinejoin: 'round' }))
 
+    const ModelStar = h('svg', { className: 'gl-model-star', width: 11, height: 11, viewBox: '0 0 16 16', fill: 'currentColor', 'aria-hidden': true },
+      h('path', { d: 'M8 1.5l1.9 4.2 4.6.5-3.4 3.1.9 4.7L8 11.7 4 14l.9-4.7-3.4-3.1 4.6-.5z' }))
+
+    const CloseIcon = h('svg', { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', 'aria-hidden': true },
+      h('path', { d: 'M4 4l8 8M12 4l-8 8', stroke: 'currentColor', strokeWidth: 1.4, strokeLinecap: 'round' }))
+
     function shortTime(ms) {
       return new Date(ms).toLocaleString(undefined, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     }
@@ -409,6 +415,7 @@ window.__ModuleLoader__.load({
         try {
           const next = await request('api/chatgpt-accounts', body)
           if (!Array.isArray(next?.accounts)) throw new Error('Invalid accounts response')
+          if (body.action === 'remove') invalidateCatalog(body.accountId)
           if (mounted.current && scopeKey.current === targetScope) { ++generation.current; setSnapshot(next) }
           accountsChanged()
           return true
@@ -501,7 +508,9 @@ window.__ModuleLoader__.load({
       const send = React.useCallback(async (body) => {
         setBusy(true)
         try {
-          setAuth(await postAuth(accountId, body))
+          const next = await postAuth(accountId, body)
+          invalidateCatalog(accountId)
+          setAuth(next)
           accountsChanged()
         } catch (caught) {
           setAuth({ status: 'failed', label: null, methods: [], notice: null, prompt: null, code: caught instanceof Error ? caught.message : 'login-failed', revoked: null })
@@ -627,12 +636,16 @@ window.__ModuleLoader__.load({
     Object.assign(copy.ru, { resetCardTitle: 'Полный сброс', resetCardsTitle: 'Доступные сбросы', resetCardExpiry: 'До {time}' })
     Object.assign(copy.en, { resetCardTitle: 'Full reset', resetCardsTitle: 'Available resets', resetCardExpiry: 'Until {time}' })
     Object.assign(copy.zh, { resetCardTitle: '完全重置', resetCardsTitle: '可用重置', resetCardExpiry: '有效期至 {time}' })
-    function MiniCardOrb({ seed = 0 }) {
+    function MiniCardOrb({ seed = 0, quota = false }) {
+      if (React.useContext(SimpleTheme)) return quota ? h('span', { className: 'gl-mini-orb gl-static-quota', 'aria-hidden': true }) : null
       return h('span', { className: 'gl-mini-orb', 'aria-hidden': true, style: { '--gl-orb-phase': '-' + (seed * 7.13).toFixed(2) + 's', '--gl-orb-direction': seed % 2 ? 'reverse' : 'normal' } }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' })))
     }
     function ResetChoiceCard({ children, disabled, blocked, onClick, ...props }) {
+      const simple = React.useContext(SimpleTheme)
       const node = React.useRef(null), engine = React.useRef(null)
       React.useEffect(() => {
+        if (simple) return
+        const element = node.current
         const media = matchMedia('(prefers-reduced-motion: reduce)')
         const base = .65 + Math.random() * .7
         const model = { rate: base, target: base, velocity: 0, lift: 0, liftTarget: 0, liftVelocity: 0, raf: 0, last: 0 }
@@ -659,11 +672,11 @@ window.__ModuleLoader__.load({
           else if(!model.raf)model.raf=requestAnimationFrame(frame)
         }
         const reduce=()=>model.hot(false);media.addEventListener('change',reduce)
-        render();return()=>{cancelAnimationFrame(model.raf);media.removeEventListener('change',reduce);engine.current=null}
-      }, [])
+        render();return()=>{cancelAnimationFrame(model.raf);media.removeEventListener('change',reduce);engine.current=null;element?.style.removeProperty('transform')}
+      }, [simple])
       return h('button', { ...props, ref: node, type:'button', disabled,
-        onPointerEnter:()=>{if(!disabled)engine.current?.hot(true)},onPointerLeave:()=>engine.current?.hot(false),
-        onFocus:()=>{if(!disabled)engine.current?.hot(true)},onBlur:()=>engine.current?.hot(false),
+        onPointerEnter:simple ? undefined : ()=>{if(!disabled)engine.current?.hot(true)},onPointerLeave:simple ? undefined : ()=>engine.current?.hot(false),
+        onFocus:simple ? undefined : ()=>{if(!disabled)engine.current?.hot(true)},onBlur:simple ? undefined : ()=>engine.current?.hot(false),
          'aria-disabled': blocked || undefined, onClick: event => { if (!blocked && !disabled) onClick?.(event) } },children)
     }
 
@@ -677,9 +690,6 @@ window.__ModuleLoader__.load({
     })
     Object.assign(copy.en, { resetBusyError: 'Account is busy in a running session. Wait for it to finish, then select the reset again.', resetAuthError: 'Account authorization expired or was rejected. Reauthorize in ChatGPT settings.', resetCreditError: 'This reset expired or is no longer available. Refresh using ↻ above.', resetConsentError: 'Confirmation expired or the account changed. Select the reset again.', resetOriginError: 'Blocked by the DSH origin check. Reload the page and report the code if it persists.', resetNetworkError: 'Reset service unavailable or rate limited. Try later.' })
     Object.assign(copy.zh, { resetBusyError: '账号正在被运行中的会话使用，请等待结束后重试。', resetAuthError: '账号授权已过期或被拒绝，请在设置中重新授权。', resetCreditError: '此重置已过期或不可用，请点击上方 ↻ 刷新。', resetConsentError: '确认已过期或账号已更改，请重新选择。', resetOriginError: 'DSH 来源检查已阻止请求，请刷新页面。', resetNetworkError: '重置服务不可用或请求受限，请稍后重试。' })
-    Object.assign(copy.ru, { resetPassword: 'Пароль для сброса', resetPasswordInvalid: 'Неверный пароль. Введите его снова.' })
-    Object.assign(copy.en, { resetPassword: 'Reset password', resetPasswordInvalid: 'Incorrect password. Enter it again.' })
-    Object.assign(copy.zh, { resetPassword: '重置密码', resetPasswordInvalid: '密码错误，请重新输入。' })
     function resetErrorKey(code) {
       if (code === 'ACCOUNT_BUSY' || code === 'LOGIN_IN_PROGRESS') return 'resetBusyError'
       if (['RESET_TOKEN_EXPIRED','RESET_SIGNED_OUT','RESET_AUTH','ACCOUNT_SIGNED_OUT'].includes(code)) return 'resetAuthError'
@@ -690,6 +700,7 @@ window.__ModuleLoader__.load({
       return 'resetActionError'
     }
     function ResetMenu({ t, accountId, accountLabel, disabled, selecting, onConsumed, onBusyChange, autoOpen = false }) {
+      const simple = React.useContext(SimpleTheme)
       const [open, setOpen] = React.useState(false)
       const [data, setData] = React.useState(null)
       const [flow, setFlow] = React.useState(null)
@@ -700,7 +711,6 @@ window.__ModuleLoader__.load({
       const cancelButton = React.useRef(null), epoch = React.useRef(0), controller = React.useRef(null)
       const lock = React.useRef(false), armed = React.useRef(false), consuming = React.useRef(false)
       const flowRef = React.useRef(null)
-      const passwordInput = React.useRef(null)
       const cancelNonce = pending => {
         if (pending?.nonce) request('api/chatgpt-resets', { action: 'cancel', accountId: pending.accountId, nonce: pending.nonce }).catch(() => {})
       }
@@ -748,17 +758,12 @@ window.__ModuleLoader__.load({
         if (lock.current || disabled || !open || !accountId) return
         if (action !== 'begin' && !armed.current) return
         if (action === 'advance' && flow?.stage !== 1 || action === 'consume' && flow?.stage !== 2) return
-        const password = action === 'consume' ? passwordInput.current?.value : undefined
-        if (action === 'consume' && !password) {
-          armed.current = false; setMessage('resetPassword'); passwordInput.current?.focus(); return
-        }
-        if (action === 'consume' && passwordInput.current) passwordInput.current.value = ''
         armed.current = false; lock.current = true; setBusy(true); setMessage(''); setErrorCode('')
         const token = ++epoch.current
         const payload = action === 'begin' ? { creditId: credit.id } : { nonce: flow.nonce }
         if (action === 'consume') { consuming.current = true; try { onBusyChange?.(true) } catch (_) {} }
         try {
-          const result = await request('api/chatgpt-resets', { action, accountId, ...payload, ...(action === 'consume' ? { password } : {}) })
+          const result = await request('api/chatgpt-resets', { action, accountId, ...payload })
           if (token !== epoch.current) {
             if (action !== 'consume') cancelNonce({ accountId, nonce: result?.nonce })
             else if (result?.outcome === 'reset') { try { onConsumed?.(accountId, result) } catch (_) {} }
@@ -778,11 +783,6 @@ window.__ModuleLoader__.load({
         } catch (error) {
           if (token === epoch.current) {
             const code = typeof error?.message === 'string' && /^[A-Z_]{1,60}$/.test(error.message) ? error.message : 'RESET_REQUEST_FAILED'
-            if (action === 'consume' && code === 'RESET_PASSWORD_INVALID') {
-              setMessage('resetPasswordInvalid')
-              passwordInput.current?.focus()
-              return
-            }
             setFlow(null); if (action === 'consume') setData(null)
             setErrorCode(code)
             setMessage(action === 'consume' ? 'resetUnknown' : resetErrorKey(code))
@@ -852,7 +852,6 @@ window.__ModuleLoader__.load({
           h('strong', null, tr(flow.stage === 1 ? 'resetStepOne' : 'resetStepTwo')),
           h('p', null, tr(flow.stage === 1 ? 'resetWarningOne' : 'resetWarningTwo', { account: accountLabel || accountId, type: typeText(flow.credit) })),
           h('small', null, tr('resetExpires', { time: stamp(flow.credit.expiresAt) })),
-          flow.stage === 2 ? h('input', { ref: passwordInput, className: 'gl-input', type: 'password', autoComplete: 'off', maxLength: 128, 'aria-label': tr('resetPassword'), placeholder: tr('resetPassword') }) : null,
           h('div', { className: 'reset-actions' },
             button(tr(consuming.current ? 'resetWait' : 'resetCancel'), () => { if (!consuming.current) { invalidate(); setMessage('') } }, { ref: cancelButton, disabled: !open || consuming.current }),
             button(tr(flow.stage === 1 ? 'resetContinue' : 'resetSpend'), () => change(flow.stage === 1 ? 'advance' : 'consume'), {
@@ -861,10 +860,9 @@ window.__ModuleLoader__.load({
           !busy && !credits.length && !message ? h('p', { className: 'reset-row', 'data-reset-row': true }, tr('resetEmpty')) : null,
            h('div', { className: 'reset-choice-cards' }, credits.map((credit, index) =>
              h(ResetChoiceCard, { key: credit.id, className: 'reset-choice-card',
-               title: typeText(credit) + '. ' + tr('resetDescription') + ' · ' + tr('resetExpires', { time: stamp(credit.expiresAt) }),
                'aria-label': typeText(credit) + ' · ' + tr('resetExpires', { time: stamp(credit.expiresAt) }),
                blocked: selecting, disabled: busy || (disabled && !selecting) || !open || credit.resetType !== 'codex_rate_limits' || !!(credit.expiresAt && new Date(credit.expiresAt).getTime() <= Date.now()), onClick: () => change('begin', credit) },
-               h('span', { className: 'reset-choice-orb', 'aria-hidden': true, style: { '--gl-orb-phase': '-' + (index * 7.13).toFixed(2) + 's', '--gl-orb-direction': index % 2 ? 'reverse' : 'normal' } }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' }))),
+               simple ? null : h('span', { className: 'reset-choice-orb', 'aria-hidden': true, style: { '--gl-orb-phase': '-' + (index * 7.13).toFixed(2) + 's', '--gl-orb-direction': index % 2 ? 'reverse' : 'normal' } }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' }))),
                h('strong', null, tr('resetCardTitle')),
                h('span', { className: 'reset-choice-expiry' }, credit.expiresAt ? tr('resetCardExpiry', { time: new Date(credit.expiresAt).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }) : tr('resetNoExpiry')),
                ))),
@@ -896,6 +894,7 @@ window.__ModuleLoader__.load({
       }
     }
     function OrbDecoration() {
+      if (React.useContext(SimpleTheme)) return null
       return h('span', { className: 'gl-card-orb-clip', 'aria-hidden': true }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' }), h('span', { className: 'gl-card-orb-rim' })))
     }
 
@@ -912,10 +911,6 @@ window.__ModuleLoader__.load({
     function accountResetCaption(t, card, now) {
       const w = accountResetWindow(card)
       return Number.isFinite(w?.resetsAt) ? text(t, 'cardResetIn', { span: span(t, w.resetsAt - now) }) : text(t, 'noReset')
-    }
-    function accountResetTitle(t, card) {
-      const w = accountResetWindow(card)
-      return Number.isFinite(w?.resetsAt) ? windowLabel(t, w) + ' · ' + new Date(w.resetsAt).toLocaleString() : text(t, 'noReset')
     }
     function accountFill(card) {
       const windows = card?.windows ?? []
@@ -942,7 +937,7 @@ window.__ModuleLoader__.load({
           onRefresh ? h('span', { className: 'gl-limit-update' },
             h('time', { dateTime: card?.fetchedAt ? new Date(card.fetchedAt).toISOString() : undefined, title: card?.fetchedAt ? text(t, 'updatedAt', { time: new Date(card.fetchedAt).toLocaleString() }) + (card.freshness === 'stale' ? ' · ' + text(t, 'quotaStale') : '') : text(t, 'pickerUnknown') },
               card?.fetchedAt ? new Date(card.fetchedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + (card.freshness === 'stale' ? ' ≈' : '') : '—'),
-            h('button', { type: 'button', className: 'gl-icon', disabled: pending, title: text(t, pending ? 'refreshing' : 'refresh'), 'aria-label': title + ' · ' + text(t, pending ? 'refreshing' : 'refresh'), 'aria-busy': !!pending, 'data-spin': pending ? 'true' : undefined, onClick: onRefresh }, RefreshIcon)) : null),
+            h('button', { type: 'button', className: 'gl-icon', disabled: pending, 'aria-label': title + ' · ' + text(t, pending ? 'refreshing' : 'refresh'), 'aria-busy': !!pending, 'data-spin': pending ? 'true' : undefined, onClick: onRefresh }, RefreshIcon)) : null),
         h('div', { className: 'gl-limit-meta' },
           h('span', { title: window.resetsAt == null ? undefined : shortTime(window.resetsAt) }, window.resetsAt == null ? text(t, 'noReset') : text(t, 'resetCountdown', { span: span(t, window.resetsAt - now) })),
           h('span', { 'data-tone': danger ? 'error' : undefined }, percent === null ? text(t, 'pickerUnknown') : text(t, 'remaining', { n: String(Math.round(percent)) }))),
@@ -978,7 +973,6 @@ window.__ModuleLoader__.load({
             type: 'button',
             className: 'gl-icon',
             'aria-label': text(t, 'refresh'),
-            title: text(t, 'refresh'),
             'data-spin': pending ? 'true' : undefined,
             disabled: pending,
             onClick: onRefresh,
@@ -1013,7 +1007,10 @@ window.__ModuleLoader__.load({
           inFlight = true
           try {
             const next = await getAuth(account.id, controller.signal)
-            if (live) { setAuth(next); setError('') }
+            if (live) {
+              if (auth?.status === 'pending' && next.status !== 'pending') invalidateCatalog(account.id)
+              setAuth(next); setError('')
+            }
           } catch (e) { if (live) setError(e instanceof Error ? e.message : 'Request failed') }
           finally { inFlight = false }
         }
@@ -1126,44 +1123,133 @@ window.__ModuleLoader__.load({
     Object.assign(copy.en, { setupTitle: 'Subagent models', setupReady: 'Configured: all 10 ChatGPT models available.', setupNeeded: 'Setup required.', setupAction: 'Set up subagents', setupNewChats: 'Applies only to new chats. Subagents inherit the parent’s selected account.', setupConfirm: 'Enable model selection and add these 10 routes? All other permissions, including openai-codex, remain unchanged. Remove unwanted routes in Subagent settings.', setupSaved: 'Saved. Start a new chat to apply permissions.', setupUnavailable: 'Subagent settings unavailable. Check the official Subagent plugin and refresh status.', setupReadOnly: 'Settings are read-only.', setupConflict: 'Settings changed concurrently. Refresh status and confirm again.', setupFailed: 'Could not save settings. Refresh status and confirm again.' })
     Object.assign(copy.zh, { setupTitle: '子代理模型', setupReady: '已配置：全部 10 个 ChatGPT 模型可用。', setupNeeded: '需要配置。', setupAction: '配置子代理', setupNewChats: '仅适用于新会话。子代理继承父会话选择的账号。', setupConfirm: '启用模型选择并添加这 10 个路由？其他权限（包括 openai-codex）保持不变。可在 Subagent 设置中移除不需要的路由。', setupSaved: '已保存。请新建会话以应用权限。', setupUnavailable: '子代理设置不可用。请检查官方 Subagent 插件并刷新状态。', setupReadOnly: '设置为只读。', setupConflict: '设置已被其他操作修改。请刷新状态并重新确认。', setupFailed: '保存失败。请刷新状态并重新确认。' })
 
-    const resetDisplayKey = 'dsh-chatgpt-multi-account:show-resets'
-    const resetDisplayEvents = new EventTarget()
-    function readResetDisplay() {
-      try { return window.localStorage.getItem(resetDisplayKey) === '1' } catch { return false }
-    }
-    function writeResetDisplay(enabled) {
-      window.localStorage.setItem(resetDisplayKey, enabled ? '1' : '0')
-      resetDisplayEvents.dispatchEvent(new Event('change'))
-    }
-    function subscribeResetDisplay(notify) {
-      const onStorage = event => { if (event.key === resetDisplayKey || event.key === null) notify() }
-      resetDisplayEvents.addEventListener('change', notify)
-      window.addEventListener('storage', onStorage)
-      return () => {
-        resetDisplayEvents.removeEventListener('change', notify)
-        window.removeEventListener('storage', onStorage)
+    function displayPreference(name, defaultEnabled = false) {
+      const key = 'dsh-chatgpt-multi-account:' + name
+      const events = new EventTarget()
+      const read = () => {
+        try {
+          const saved = window.localStorage.getItem(key)
+          return saved === '1' || (saved !== '0' && defaultEnabled)
+        } catch { return defaultEnabled }
+      }
+      const subscribe = notify => {
+        const onStorage = event => { if (event.key === key || event.key === null) notify() }
+        events.addEventListener('change', notify)
+        window.addEventListener('storage', onStorage)
+        return () => {
+          events.removeEventListener('change', notify)
+          window.removeEventListener('storage', onStorage)
+        }
+      }
+      return {
+        useEnabled: () => React.useSyncExternalStore(subscribe, read, () => defaultEnabled),
+        write(enabled) {
+          window.localStorage.setItem(key, enabled ? '1' : '0')
+          events.dispatchEvent(new Event('change'))
+        },
       }
     }
-    const useResetDisplay = () => React.useSyncExternalStore(subscribeResetDisplay, readResetDisplay, () => false)
-    Object.assign(copy.ru, { showResets: 'Показывать ручные сбросы лимитов', resetDisplayError: 'Не удалось сохранить настройку отображения.' })
-    Object.assign(copy.en, { showResets: 'Show manual limit resets', resetDisplayError: 'Could not save display preference.' })
-    Object.assign(copy.zh, { showResets: '显示手动额度重置', resetDisplayError: '无法保存显示设置。' })
-    function ResetDisplaySetting({ t }) {
-      const checked = useResetDisplay()
+    const developerMode = displayPreference('developer-mode')
+    const developerUnlocked = displayPreference('developer-unlocked')
+    const SimpleTheme = React.createContext(false)
+    Object.assign(copy.ru, { developerMode: 'Режим разработчика', developerPassword: 'Пароль режима разработчика', developerError: 'Неверный пароль или не удалось сохранить настройку.', developerEnable: 'Включить', developerCancel: 'Отмена', sectionAccount: 'Аккаунт', sectionLimits: 'Лимиты', sectionEffort: 'Уровень рассуждения', sectionModel: 'Модель' })
+    Object.assign(copy.en, { developerMode: 'Developer mode', developerPassword: 'Developer mode password', developerError: 'Incorrect password or could not save the preference.', developerEnable: 'Enable', developerCancel: 'Cancel', sectionAccount: 'Account', sectionLimits: 'Limits', sectionEffort: 'Reasoning effort', sectionModel: 'Model' })
+    Object.assign(copy.zh, { developerMode: '开发者模式', developerPassword: '开发者模式密码', developerError: '密码错误或无法保存设置。', developerEnable: '启用', developerCancel: '取消', sectionAccount: '账号', sectionLimits: '额度', sectionEffort: '推理强度', sectionModel: '模型' })
+    const simpleCss = `
+[data-gl-simple], [data-gl-simple] *, [data-gl-simple] *::before, [data-gl-simple] *::after {
+  animation: none !important; transition: none !important; box-shadow: none !important;
+}
+[data-gl-simple].gl-picker-dialog.gl-picker-widget { width:min(390px,calc(100vw - 16px)); clip-path:none; border-radius:6px }
+[data-gl-simple] .gl-picker-shell .gl-picker-list { gap:3px; padding:3px 6px 6px }
+[data-gl-simple] .gl-picker-head { padding:4px 6px }
+[data-gl-simple] .gl-picker-list :is(.gl-effort-button,.gl-model-cell) { height:auto; min-height:24px; padding:3px 5px; line-height:16px }
+[data-gl-simple] .gl-account-mini-grid>.gl-account-mini-card { height:auto; min-height:56px; gap:0; padding:3px 4px }
+[data-gl-simple] .gl-picker-shell .gl-picker-list .gpt-reset-menu .reset-choice-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,105px),1fr)); gap:4px }
+[data-gl-simple] .gpt-reset-menu .reset-choice-card { width:100%; height:36px; gap:0; padding:3px 5px; background:transparent; border-radius:4px }
+[data-gl-simple] .gpt-reset-menu p { margin:2px 0 }
+[data-gl-simple] .gpt-reset-menu .reset-actions { margin-top:4px }
+[data-gl-simple] .gpt-reset-menu .reset-actions button { flex:1 1 0; padding:3px 5px; text-align:center }
+[data-gl-simple] .gl-picker-shell .gl-picker-list > :is(.gl-account-mini-grid,.gpt-reset-menu,.gl-efforts,.gl-model-grid) {
+  background:transparent; border:0; border-top:1px solid var(--dsw-alias-border-l2); border-radius:0; padding:5px 0;
+}
+[data-gl-simple] .gl-picker-list :is(.gl-account-mini-grid>.gl-account-mini-card,.reset-choice-card,.gl-effort-button,.gl-model-cell) {
+  background:transparent; border-radius:4px;
+}
+[data-gl-simple] .gl-account-mini-card > .gl-static-quota { inset:auto 0 0; height:var(--gl-account-quota-fill,0%); clip-path:none; background:var(--dsw-alias-state-business-primary); opacity:.16 }
+[data-gl-simple] .gl-account-mini-card[data-quota-stale=true] > .gl-static-quota { opacity:.08 }
+.gl-static-quota::after { content:none }
+.gl-developer-setting { margin-top:14px }
+.gl-developer-setting > button[aria-pressed=true] { border-color:var(--dsw-alias-state-business-primary) }
+.gl-section-label,.gl-header-updated,.gl-model-recommendation { font-size:10px; line-height:16px; color:var(--dsw-alias-label-tertiary); font-weight:400; font-variant-numeric:tabular-nums }
+.gl-section-label { display:flex; align-items:center; gap:6px; margin:3px 0 0; user-select:none; cursor:default }
+.gl-picker-footer,.gl-model-recommendation { display:flex; align-items:center; gap:4px }
+.gl-picker-footer { flex-wrap:wrap; justify-content:space-between; gap:4px 10px }
+.gl-model-recommendation { order:2; margin:0; user-select:none }
+.gl-model-cell:has(>.gl-model-star) { padding-inline:16px }
+.gl-model-star { display:block; flex:none; color:var(--dsw-alias-state-warning-primary,#c59a53); pointer-events:none }
+.gl-model-cell>.gl-model-star { position:absolute; inset-inline-end:5px; inset-block:0; margin-block:auto; z-index:1 }
+.gl-picker-footer .gl-new-chat-defaults { margin-inline-start:0; font-size:10px; line-height:16px }
+.gl-picker-footer .gl-picker-admin-switch { margin-inline-start:auto }
+.gl-picker-footer .gl-new-chat-defaults input { width:20px; height:12px; padding:1px }
+.gl-picker-footer .gl-new-chat-defaults input::before { width:8px; height:8px }
+.gl-picker-footer .gl-new-chat-defaults input:checked::before { transform:translateX(8px) }
+.gl-picker-head .gl-picker-provider-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; flex:0 1 127px; min-width:0; margin-inline-end:auto }
+.gl-picker-head .gl-picker-provider-tabs>.gl-model-cell { justify-content:center; text-align:center; font-size:11px; line-height:16px; height:30px; min-height:30px; padding:3px 4px }
+.gl-picker-provider-tabs>.gl-model-cell[aria-pressed=true] { color:var(--dsw-alias-state-business-primary); border-color:var(--dsw-alias-state-business-primary) }
+[data-gl-simple] .gl-picker-head .gl-picker-provider-tabs>.gl-model-cell { height:24px; min-height:24px; border-radius:4px }
+.gl-picker-widget .gl-picker-head:has(.gl-picker-provider-tabs) { gap:5px; padding:4px 12px; flex-wrap:wrap }
+[data-gl-simple].gl-picker-widget .gl-picker-head:has(.gl-picker-provider-tabs) { padding-inline:6px }
+.gl-section-label::after { content:''; order:1; flex:1; border-top:1px solid var(--dsw-alias-border-l2) }
+.gl-simple-account,.gl-simple-limits { font-size:11px; margin:0; padding:2px 0 }
+.gl-simple-limits { list-style:none; display:grid; gap:3px }
+.gl-simple-limits li { display:grid; gap:3px; overflow-wrap:anywhere }
+.gl-simple-limit-track { height:5px; border-radius:999px; overflow:hidden; background:var(--dsw-alias-bg-module-platform); border:1px solid var(--dsw-alias-border-l2) }
+.gl-simple-limit-fill { display:block; height:100%; background:var(--dsw-alias-state-business-primary) }
+.gl-simple-limit-track[data-stale] .gl-simple-limit-fill { opacity:.55 }
+[data-gl-simple] .gl-picker-shell .gl-picker-list > .gl-section-label + :is(.gl-account-mini-grid,.gl-efforts,.gl-model-grid) { border-top:0 }
+/* Also cover flat cards, whose decorative hover layers are absent in this theme. */
+[data-gl-simple] button:hover:not(:disabled):not([aria-disabled=true]),
+button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
+  background-color:var(--dsw-alias-interactive-bg-hover) !important;
+}
+`
+    function DeveloperModeSetting({ t }) {
+      const enabled = developerMode.useEnabled()
+      const unlocked = developerUnlocked.useEnabled()
+      const [editing, setEditing] = React.useState(false)
       const [failed, setFailed] = React.useState(false)
-      return h('div', { className: 'gl-reset-display' },
-        h('style', null, `.gl-reset-display{margin-top:14px}.gl-reset-display label{display:flex;align-items:center;gap:8px;cursor:pointer}.gl-reset-display input{appearance:none;margin:0;width:32px;height:18px;flex:none;border:1px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-layer-1);cursor:pointer}.gl-reset-display input::before{content:'';display:block;width:12px;height:12px;margin:2px;border-radius:50%;background:var(--dsw-alias-label-secondary)}.gl-reset-display input:checked{background:var(--dsw-alias-state-business-primary)}.gl-reset-display input:checked::before{transform:translateX(14px);background:var(--dsw-alias-bg-layer-1)}.gl-reset-display input:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}`),
-        h('label', null, h('input', { type: 'checkbox', role: 'switch', checked, onChange: event => {
-          try { writeResetDisplay(event.target.checked); setFailed(false) } catch { setFailed(true) }
-        } }), h('span', null, text(t, 'showResets'))),
-        failed ? h('p', { role: 'alert' }, text(t, 'resetDisplayError')) : null)
+      const input = React.useRef(null)
+      React.useEffect(() => { if (editing) input.current?.focus() }, [editing])
+      const save = value => {
+        try { developerMode.write(value); setEditing(false); setFailed(false) } catch { setFailed(true) }
+      }
+      return h('div', { className: 'gl-developer-setting' },
+        h('button', { className: 'gl-btn', type: 'button', 'aria-pressed': enabled, onClick: () => {
+          setFailed(false)
+          if (enabled) {
+            try { developerUnlocked.write(true); save(false) } catch { setFailed(true) }
+          } else if (unlocked) save(true)
+          else setEditing(value => !value)
+        } }, text(t, 'developerMode')),
+        editing && !enabled ? h('form', { className: 'gl-form', onSubmit: event => {
+          event.preventDefault()
+          const correct = input.current?.value === 'theseeker'
+          input.current.value = ''
+          if (correct) {
+            try { developerUnlocked.write(true); save(true) } catch { setFailed(true) }
+          }
+          else { setFailed(true); input.current.focus() }
+        } }, h('input', { ref: input, className: 'gl-input', type: 'password', autoComplete: 'off', required: true, 'aria-label': text(t, 'developerPassword'), placeholder: text(t, 'developerPassword') }),
+          h('button', { className: 'gl-btn', type: 'submit' }, text(t, 'developerEnable')),
+          h('button', { className: 'gl-btn', type: 'button', onClick: () => { setEditing(false); setFailed(false) } }, text(t, 'developerCancel'))) : null,
+        failed ? h('p', { role: 'alert' }, text(t, 'developerError')) : null)
     }
-
     function GptLinkSection({ t, remote }) {
       const { snapshot, error, pending, refresh, mutate } = useAccounts()
       const [label, setLabel] = React.useState('')
-      return h('div', { className: 'gl' },
-        h('style', null, css + pickerCss), h('h2', { className: 'gl-heading' }, text(t, 'accounts')),
+      const simple = !developerMode.useEnabled()
+      return h(SimpleTheme.Provider, { value: simple }, h('div', { className: 'gl', 'data-gl-simple': simple || undefined },
+        h('style', null, css + pickerCss + simpleCss), h('h2', { className: 'gl-heading' }, text(t, 'accounts')),
         h('p', { className: 'gl-intro' }, text(t, 'setupHint')),
         h('form', { className: 'gl-form', onSubmit: async event => {
           event.preventDefault()
@@ -1177,7 +1263,7 @@ window.__ModuleLoader__.load({
         snapshot?.accounts.length === 0 ? h('p', { className: 'gl-note' }, text(t, 'emptyAccounts')) : null,
         snapshot?.accounts.map(account => h(AccountPanel, { key: account.id, t, account, pending, mutate })),
         h(SubagentSetup, { t, remote }),
-        h(ResetDisplaySetting, { t }))
+        h(DeveloperModeSetting, { t })))
     }
 
     function SessionAccountSelector({ t, sessionId, useSession }) {
@@ -1199,13 +1285,13 @@ window.__ModuleLoader__.load({
           selected && !accounts.some(account => account.id === selected) ? h('option', { value: selected, disabled: true }, text(t, 'unconfigured')) : null,
           accounts.map(account => h('option', { key: account.id, value: account.id, disabled: !account.configured }, account.label + (account.configured ? '' : ' · ' + text(t, 'unconfigured'))))),
         h('span', { className: 'gl-dock-help', title: hint, tabIndex: 0, 'aria-label': hint }, 'ⓘ'),
-        error ? h('button', { className: 'gl-icon', title: error + ' · ' + text(t, 'retry'), 'aria-label': text(t, 'retry'), onClick: () => void refresh() }, '↻') : null)
+        error ? h('button', { className: 'gl-icon', 'aria-label': text(t, 'retry'), onClick: () => void refresh() }, '↻') : null)
     }
 
 
-    Object.assign(copy.ru, { pickerTitle: 'Аккаунт и модель', pickerSearch: 'Поиск аккаунта или модели', pickerClose: 'Закрыть', pickerQuota: 'Использовано', pickerUnknown: 'Квота недоступна', pickerChoose: 'Выбрать модель', pickerOther: 'Другие провайдеры', pickerBusy: 'Во время работы нельзя менять модель. Ручной сброс доступен.', pickerRefresh: 'Обновить квоты', pickerPartial: 'Аккаунт выбран, но модель не изменилась. Проверьте выбор перед отправкой.', pickerNoResults: 'Ничего не найдено', pickerLoad: 'Загрузка моделей…', pickerInstruction: 'Выберите уровень рассуждений, затем нажмите на модель.', pickerEmptyAccounts: 'Добавьте аккаунт в Настройки → ChatGPT Link.', pickerEmptyModels: 'Нет доступных моделей. Нажмите обновление справа вверху.' })
-    Object.assign(copy.en, { pickerTitle: 'Account and model', pickerSearch: 'Search accounts or models', pickerClose: 'Close', pickerQuota: 'Used', pickerUnknown: 'Quota unavailable', pickerChoose: 'Choose model', pickerOther: 'Other providers', pickerBusy: 'Model changes are blocked while running. Manual resets remain available.', pickerRefresh: 'Refresh quotas', pickerPartial: 'Account changed but model selection failed. Check your selection before sending.', pickerNoResults: 'No matches', pickerLoad: 'Loading models…', pickerInstruction: 'Choose reasoning effort, then click a model.', pickerEmptyAccounts: 'Add an account in Settings → ChatGPT Link.', pickerEmptyModels: 'No available models. Use refresh at the top right.' })
-    Object.assign(copy.zh, { pickerTitle: '账号与模型', pickerSearch: '搜索账号或模型', pickerClose: '关闭', pickerQuota: '已用', pickerUnknown: '额度不可用', pickerChoose: '选择模型', pickerOther: '其他提供方', pickerBusy: '运行时无法切换模型，但仍可手动重置额度。', pickerRefresh: '刷新额度', pickerPartial: '账号已切换，但模型选择失败。发送前请检查。', pickerNoResults: '没有结果', pickerLoad: '正在加载模型…', pickerInstruction: '选择推理强度，然后点击模型。', pickerEmptyAccounts: '在设置 → ChatGPT Link 中添加账号。', pickerEmptyModels: '没有可用模型，请点击右上角刷新。' })
+    Object.assign(copy.ru, { pickerTitle: 'Аккаунт и модель', pickerSearch: 'Поиск аккаунта или модели', pickerClose: 'Закрыть', pickerQuota: 'Использовано', pickerUnknown: 'Квота недоступна', pickerChoose: 'Выбрать модель', pickerOther: 'Другие провайдеры', pickerBusy: 'Модель можно сменить после завершения работы.', pickerRefresh: 'Обновить квоты', pickerPartial: 'Аккаунт выбран, но модель не изменилась. Проверьте выбор перед отправкой.', pickerNoResults: 'Ничего не найдено', pickerLoad: 'Загрузка моделей…', pickerInstruction: 'Выберите уровень рассуждений, затем нажмите на модель.', pickerEmptyAccounts: 'Добавьте аккаунт в Настройки → ChatGPT Link.', pickerEmptyModels: 'Нет доступных моделей. Нажмите обновление справа вверху.' })
+    Object.assign(copy.en, { pickerTitle: 'Account and model', pickerSearch: 'Search accounts or models', pickerClose: 'Close', pickerQuota: 'Used', pickerUnknown: 'Quota unavailable', pickerChoose: 'Choose model', pickerOther: 'Other providers', pickerBusy: 'You can change the model when the session is idle.', pickerRefresh: 'Refresh quotas', pickerPartial: 'Account changed but model selection failed. Check your selection before sending.', pickerNoResults: 'No matches', pickerLoad: 'Loading models…', pickerInstruction: 'Choose reasoning effort, then click a model.', pickerEmptyAccounts: 'Add an account in Settings → ChatGPT Link.', pickerEmptyModels: 'No available models. Use refresh at the top right.' })
+    Object.assign(copy.zh, { pickerTitle: '账号与模型', pickerSearch: '搜索账号或模型', pickerClose: '关闭', pickerQuota: '已用', pickerUnknown: '额度不可用', pickerChoose: '选择模型', pickerOther: '其他提供方', pickerBusy: '会话空闲时可以切换模型。', pickerRefresh: '刷新额度', pickerPartial: '账号已切换，但模型选择失败。发送前请检查。', pickerNoResults: '没有结果', pickerLoad: '正在加载模型…', pickerInstruction: '选择推理强度，然后点击模型。', pickerEmptyAccounts: '在设置 → ChatGPT Link 中添加账号。', pickerEmptyModels: '没有可用模型，请点击右上角刷新。' })
     Object.assign(copy.ru, { activeAccount: 'Используется', activeModel: 'Текущая' })
     Object.assign(copy.en, { activeAccount: 'In use', activeModel: 'Current' })
     Object.assign(copy.zh, { activeAccount: '使用中', activeModel: '当前' })
@@ -1216,7 +1302,7 @@ window.__ModuleLoader__.load({
 .gl-picker-dialog.gl-picker-widget{position:fixed;inset:auto;margin:0;max-width:calc(100vw - 16px);max-height:var(--gl-widget-height,620px);z-index:1000;border-radius:12px;clip-path:inset(0 round 12px);box-shadow:0 8px 28px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent)}
 .gl-picker-dialog.gl-picker-widget:popover-open{display:block}
 .gl-picker-dialog.gl-picker-widget::backdrop{background:transparent;pointer-events:none}
-.gl-picker-widget>.gl-picker-shell{max-height:calc(var(--gl-widget-height,620px) - 2px)}
+.gl-picker-widget>.gl-picker-shell{height:var(--gl-tab-height,auto);max-height:calc(var(--gl-widget-height,620px) - 2px)}
 .gl-picker-widget .gl-picker-head{padding:8px 10px 6px}
 .gl-picker-widget .gl-picker-head strong{font-size:13px}
 .gl-picker-widget .gl-picker-shell>.gl-picker-head{border-radius:11px 11px 0 0}
@@ -1435,7 +1521,10 @@ window.__ModuleLoader__.load({
 
 .gl-picker-trigger{display:inline-flex;align-items:center;gap:6px;max-width:360px;min-width:0;border:0;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:12px;padding:4px 6px;border-radius:8px}
 .gl-picker-trigger:hover{background:var(--dsw-alias-interactive-bg-hover)}
-.gl-picker-trigger>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:230px}
+.gl-picker-trigger>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gl-trigger-model{flex:0 1 auto;min-width:min-content}
+.gl-trigger-account{flex:0 1 auto;min-width:0;max-width:110px}
+.gl-picker-quota{flex-shrink:2;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .gl-picker-quota{font-size:11px;color:var(--dsw-alias-label-tertiary);white-space:nowrap}
 .gl-picker-dialog{box-sizing:border-box;width:min(480px,calc(100vw - 24px));max-height:min(640px,calc(100dvh - 32px));padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:16px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);overflow:hidden}
 .gl-picker-dialog::backdrop{background:color-mix(in srgb,var(--dsw-alias-label-primary) 18%,transparent)}
@@ -1456,6 +1545,7 @@ window.__ModuleLoader__.load({
 .gl-picker-row>button:hover{background:var(--dsw-alias-interactive-bg-hover)}.gl-picker-row button[aria-pressed=true]{font-weight:600;color:var(--dsw-alias-state-business-primary)}
 .gl-picker-row select{flex:none;max-width:112px;height:28px;background:var(--dsw-alias-bg-layer-1);color:inherit;border:1px solid var(--dsw-alias-border-l3);border-radius:6px;font:inherit;font-size:11px}
 .gl-picker-row button:disabled{opacity:.5;cursor:default}.gl-picker-info{padding:0 12px 8px;margin:0;font-size:11px;color:var(--dsw-alias-label-secondary)}
+.gl-picker-shell>.gl-picker-busy{margin:4px 8px 6px;padding:7px 9px;border-inline-start:3px solid var(--dsw-alias-state-error-primary);border-radius:4px;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 12%,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary);font-size:12px;font-weight:600;line-height:1.4}
 @media(max-width:420px){.gl-picker-head{padding:12px}.gl-picker-list{padding:0 10px 12px}.gl-picker-trigger{max-width:230px}.gl-picker-quota{max-width:95px;overflow:hidden;text-overflow:ellipsis}}
 `
     // Motion behavior adapted from DesignBookmark Fan Cards. No global theme or timers.
@@ -1466,10 +1556,9 @@ window.__ModuleLoader__.load({
           style: { '--gl-account-quota-fill': (account.configured ? accountFill(quotas[account.id]) ?? 0 : 0) + '%' },
           'data-quota-stale': quotas[account.id]?.freshness === 'stale' ? 'true' : undefined,
           'aria-pressed': previewId === account.id, 'data-current': currentId === account.id ? 'true' : undefined,
-          title: account.label + ' · ' + quotaText(quotas[account.id]) + ' · ' + accountResetTitle(t, quotas[account.id]),
           'aria-label': account.label + ' · ' + (account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')),
           onClick: () => onPreview(account.id),
-        }, h(MiniCardOrb, { seed: index + 11 }),
+        }, h(MiniCardOrb, { seed: index + 11, quota: true }),
           h('strong', { className: 'gl-account-mini-name' }, account.label.split('@')[0]),
           h('span', null, account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')),
           h('span', null, account.configured ? accountResetCaption(t, quotas[account.id], now) : '—'),
@@ -1498,7 +1587,7 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         const op = operation.current, epoch = ++op.epoch
         op.controller?.abort(); op.locked = false
-        setSaved(null); setFailed(false); setBusy(false); setLoading(open)
+        setFailed(false); setBusy(false); setLoading(open)
         if (!open) return
         const controller = new AbortController(); op.controller = controller
         request('api/chatgpt-defaults', undefined, controller.signal).then(result => {
@@ -1528,36 +1617,64 @@ window.__ModuleLoader__.load({
         }
       }
       const status = failed ? 'defaultsError' : loading ? 'defaultsLoading' : unavailable ? 'defaultsUnavailable' : 'defaultsTitle'
-      return h('label', { className: 'gl-new-chat-defaults', title: text(t, status) },
-        h('input', { type: 'checkbox', role: 'switch', checked, disabled: !open || disabled || loading || busy || failed || unavailable, 'aria-disabled': selecting || undefined, onChange: change, 'aria-busy': loading || busy }),
+      return h('label', { className: 'gl-new-chat-defaults' },
+        h('input', { type: 'checkbox', role: 'switch', checked, disabled: !open || disabled || loading || busy || failed || unavailable, 'aria-disabled': selecting || undefined, onChange: change, 'aria-busy': loading || busy, 'aria-description': text(t, status) }),
         h('span', null, text(t, 'defaultsLabel')),
-        failed || loading ? h('span', { className: 'gl-defaults-status', role: failed ? 'alert' : 'status' }, text(t, status)) : null)
+        failed ? h('span', { className: 'gl-defaults-status', role: 'alert' }, text(t, status)) : null)
     }
 
+    Object.assign(copy.ru, { catalogUnconfirmed: 'Обнаружена, совместимость не подтверждена' })
+    Object.assign(copy.en, { catalogUnconfirmed: 'Discovered, compatibility unconfirmed' })
+    Object.assign(copy.zh, { catalogUnconfirmed: '已发现，兼容性未确认' })
+    Object.assign(copy.ru, { recommendedModel: 'рекомендуемая модель' })
+    Object.assign(copy.en, { recommendedModel: 'recommended model' })
+    Object.assign(copy.zh, { recommendedModel: '推荐模型' })
     const availabilityExtensions = new Set(['gpt-6.2-sol', 'gpt-6.2-astra', 'gpt-6.1-terra'])
     function filterAvailableModels(models, available, currentModel) {
       return models.filter(model => !availabilityExtensions.has(model.id) || available.has(model.id) || model.id === currentModel)
     }
-    function useAvailableModelIds(enabled, accountId, configured) {
-      const cache = React.useRef(new Map())
+    const toCatalogModel = row => ({ id: row.id, name: row.id, reasoning: { efforts: (row.reasoningLevels ?? []).map(id => ({ id })), defaultEffort: row.defaultReasoning } })
+    const catalogCache = new Map()
+    const catalogRequests = new Map()
+    const catalogEvents = new EventTarget()
+    const emptyCatalog = { ids: new Set(), rows: [] }
+    function invalidateCatalog(accountId) {
+      catalogRequests.get(accountId)?.abort()
+      catalogRequests.delete(accountId)
+      catalogCache.delete(accountId)
+      catalogEvents.dispatchEvent(new Event('invalidated'))
+    }
+    function refreshCatalog(accountId) {
+      if (catalogRequests.has(accountId) || catalogCache.has(accountId)) return
+      const controller = new AbortController()
+      catalogRequests.set(accountId, controller)
+      request('api/chatgpt-catalog-report?accountId=' + encodeURIComponent(accountId), undefined, controller.signal).then(report => {
+        if (controller.signal.aborted || report?.error || !Number.isFinite(report?.checkedAt) || !Array.isArray(report?.models) ||
+          !report.models.every(row => row && typeof row.id === 'string' && (row.visibility === null || typeof row.visibility === 'string'))) return
+        const rows = report.models.filter(row => row.visibility === 'list')
+        catalogCache.set(accountId, { checkedAt: Date.now(), ids: new Set(rows.map(row => row.id)), rows })
+        catalogEvents.dispatchEvent(new Event('changed'))
+      }).catch(() => {}).finally(() => {
+        if (catalogRequests.get(accountId) === controller) catalogRequests.delete(accountId)
+      })
+    }
+    function useAvailableCatalog(enabled, accountId, configured) {
       const [, update] = React.useState(0)
       React.useEffect(() => {
-        if (!enabled || !accountId || !configured) return
-        const previous = cache.current.get(accountId)
-        if (previous && Date.now() - previous.checkedAt < 300000) return
-        const controller = new AbortController()
-        request('api/chatgpt-catalog-report?accountId=' + encodeURIComponent(accountId), undefined, controller.signal).then(report => {
-          if (controller.signal.aborted || report?.error || !Number.isFinite(report?.checkedAt) || !Array.isArray(report?.models) ||
-            !report.models.every(row => row && typeof row.id === 'string' && (row.visibility === null || typeof row.visibility === 'string'))) return
-          cache.current.set(accountId, { checkedAt: Date.now(), ids: new Set(report.models.filter(row => row.visibility === 'list').map(row => row.id)) })
-          update(value => value + 1)
-        }).catch(() => {})
-        return () => controller.abort()
+        const changed = () => update(value => value + 1)
+        const refresh = () => { if (enabled && accountId && configured) refreshCatalog(accountId) }
+        const invalidated = () => { changed(); refresh() }
+        catalogEvents.addEventListener('changed', changed)
+        catalogEvents.addEventListener('invalidated', invalidated)
+        refresh()
+        return () => { catalogEvents.removeEventListener('changed', changed); catalogEvents.removeEventListener('invalidated', invalidated) }
       }, [enabled, accountId, configured])
-      return cache.current.get(accountId)?.ids ?? new Set()
+      return configured ? catalogCache.get(accountId) ?? emptyCatalog : emptyCatalog
     }
 
     function UnifiedPicker({ t, sessionId, useSession, directory, locked }) {
+      const simple = !developerMode.useEnabled()
+      const canSwitchMode = developerUnlocked.useEnabled() || !simple
       const state = React.useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot, directory.store.getSnapshot)
       const { snapshot, refresh, error: accountError } = useAccounts(sessionId)
       const unavailable = useSession(s => s.subagent !== null)
@@ -1569,7 +1686,7 @@ window.__ModuleLoader__.load({
       const [open, setOpen] = React.useState(false)
       const [query, setQuery] = React.useState('')
       const [quotas, setQuotas] = React.useState({})
-      const showResets = useResetDisplay()
+      const showResets = !simple
       const [resets, setResets] = React.useState({})
       const quotaRequests = React.useRef(new Map())
       const [now, setNow] = React.useState(Date.now())
@@ -1588,9 +1705,10 @@ window.__ModuleLoader__.load({
       const accounts = snapshot?.accounts ?? []
       const selectedAccount = accounts.find(a => a.id === selectedId)
       const previewAccount = accounts.find(a => a.id === previewId) ?? selectedAccount ?? accounts[0]
-      const availableModelIds = useAvailableModelIds(open && tab === 'gpt', previewAccount?.id, previewAccount?.configured)
+      const availableCatalog = useAvailableCatalog(open && tab === 'gpt', previewAccount?.id, previewAccount?.configured)
+      const availableModelIds = availableCatalog.ids
       const group = state.groups.find(g => g.id === state.current?.provider)
-      const currentModel = group?.models.find(m => m.id === state.current?.model)
+      const currentModel = group?.models.find(m => m.id === state.current?.model) ?? (state.current?.provider === 'chatgpt-session' && previewAccount?.id === selectedId ? availableCatalog.rows.filter(row => row.registration === 'registered').map(toCatalogModel).find(row => row.id === state.current?.model) : undefined)
       const quotaText = card => !card || !card.windows?.length ? text(t, 'pickerUnknown') : card.windows.map(w => windowLabel(t, w) + ': ' + (Number.isFinite(w.usedPercent) ? text(t, 'remaining', { n: String(Math.round(Math.max(0, Math.min(100, 100 - w.usedPercent)))) }) : text(t, 'pickerUnknown'))).join(' · ') + (card.freshness === 'stale' ? ' ≈' : '')
       const loadQuota = React.useCallback(async (ids, force = false, signal) => {
         await Promise.all(ids.map(async id => {
@@ -1642,14 +1760,14 @@ window.__ModuleLoader__.load({
         let frame = 0
         const place = () => {
           const box = anchor.getBoundingClientRect(), edge = 8, gap = 7
-          const width = Math.min(440, window.innerWidth - edge * 2)
+          const width = Math.min(simple ? 390 : 440, window.innerWidth - edge * 2)
           const above = Math.max(0, box.top - edge - gap), below = Math.max(0, window.innerHeight - box.bottom - edge - gap)
           const upwards = above > below
           const maxHeight = Math.max(80, Math.min(620, upwards ? above : below))
           node.style.width = width + 'px'
           node.style.setProperty('--gl-widget-height', maxHeight + 'px')
           const height = Math.min(node.getBoundingClientRect().height || maxHeight, maxHeight)
-          node.style.left = Math.max(edge, Math.min(window.innerWidth - width - edge, box.left)) + 'px'
+          node.style.left = Math.max(edge, Math.min(window.innerWidth - width - edge, box.right - width)) + 'px'
           node.style.top = Math.max(edge, Math.min(window.innerHeight - height - edge, upwards ? box.top - gap - height : box.bottom + gap)) + 'px'
           node.dataset.side = upwards ? 'above' : 'below'
         }
@@ -1666,8 +1784,9 @@ window.__ModuleLoader__.load({
           window.removeEventListener('resize', schedule); document.removeEventListener('scroll', schedule, true)
           if (node.hidePopover && node.matches(':popover-open')) node.hidePopover()
           if (node.open) node.close()
+          node.style.removeProperty('--gl-tab-height')
         }
-      }, [open])
+      }, [open, simple])
       React.useEffect(() => {
         if (!open) return
         const outside = event => {
@@ -1679,6 +1798,15 @@ window.__ModuleLoader__.load({
         document.addEventListener('pointerdown', outside); document.addEventListener('keydown', escape)
         return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape) }
       }, [open, resetBusy])
+      const switchTab = (next) => {
+        const node = dialog.current
+        const shell = node?.firstElementChild
+        if (next !== tab && shell && !node.style.getPropertyValue('--gl-tab-height')) {
+          const height = shell.getBoundingClientRect().height
+          if (height > 0) node.style.setProperty('--gl-tab-height', height + 'px')
+        }
+        setTab(next); setQuery(''); setCommonEffort(null)
+      }
       const close = () => { if (!inFlight.current && !resetBusy) { setOpen(false); trigger.current?.focus() } }
       const choose = async (account, provider, model) => {
         if (busy || resetBusy || inFlight.current) return
@@ -1698,12 +1826,13 @@ window.__ModuleLoader__.load({
           setError((changedAccount ? text(t, 'pickerPartial') + ' ' : '') + (e.message ?? 'Selection failed'))
         } finally { inFlight.current = false; setSelecting(false) }
       }
-      const nativeModels = state.groups.find(g => g.id === 'chatgpt-session')?.models ?? []
+      const nativeModels = (state.groups.find(g => g.id === 'chatgpt-session')?.models ?? []).filter(model => SUBAGENT_MODELS.includes(model.id))
       const otherGroups = state.groups.filter(g => g.id !== 'chatgpt-session')
       const previewGroup = otherGroups.find(g => g.id === otherProvider) ?? otherGroups.find(g => g.id === state.current?.provider) ?? otherGroups[0]
       const provider = tab === 'gpt' ? 'chatgpt-session' : previewGroup?.id
       const previewIsCurrent = tab === 'gpt' ? state.current?.provider === 'chatgpt-session' && previewAccount?.id === selectedId : state.current?.provider === provider
-      const models = tab === 'gpt' ? filterAvailableModels(nativeModels, availableModelIds, previewIsCurrent ? state.current?.model : null) : previewGroup?.models ?? []
+      const dynamicModels = availableCatalog.rows.filter(row => row.registration === 'registered').map(toCatalogModel)
+      const models = tab === 'gpt' ? [...filterAvailableModels(nativeModels, availableModelIds, previewIsCurrent ? state.current?.model : null), ...dynamicModels.filter(row => !nativeModels.some(model => model.id === row.id))] : previewGroup?.models ?? []
       const levels = [...new Map(models.flatMap(m => m.reasoning?.efforts ?? []).map(level => [level.id, level])).values()]
       const displayedEffort = commonEffort ?? (previewIsCurrent ? state.current?.reasoningEffort : undefined) ?? models[0]?.reasoning?.defaultEffort
       const changeEffort = async effort => {
@@ -1722,60 +1851,91 @@ window.__ModuleLoader__.load({
           setError(e.message ?? 'Selection failed')
         } finally { inFlight.current = false; setSelecting(false) }
       }
-      const visibleModels = models.filter(m => m.name.toLowerCase().includes(query.trim().toLowerCase()))
+      const filter = query.trim().toLowerCase()
+      const visibleModels = models.filter(m => m.name.toLowerCase().includes(filter))
+      const reservedModels = tab === 'gpt' && !filter ? [...availabilityExtensions].filter(id => !visibleModels.some(model => model.id === id)) : []
       const compactQuota = card => {
         const remaining = accountFill(card)
         return remaining === null ? '—' : text(t, 'remaining', { n: String(Math.round(remaining)) }) + (card.freshness === 'stale' ? ' ≈' : '')
       }
-      const triggerQuotaText = card => {
+      const triggerQuotaText = (card, compact = false) => {
         const w = card?.windows?.find(w => w.windowDurationMins === 10080 && !w.id.includes(':')) ?? card?.windows?.[0]
-        if (!w) return text(t, 'pickerUnknown')
+        if (!w) return compact ? '—' : text(t, 'pickerUnknown')
         const remaining = Number.isFinite(w.usedPercent) ? Math.round(Math.max(0, Math.min(100, 100 - w.usedPercent))) + '%' : '—'
         const reset = Number.isFinite(w.resetsAt) ? text(t, 'resetCountdown', { span: span(t, w.resetsAt - now) }) : text(t, 'noReset')
-        return remaining + ' · ' + reset + (card.freshness === 'stale' ? ' ≈' : '')
+        const stale = card.freshness === 'stale' ? '≈' : ''
+        if (compact) return stale + remaining + (Number.isFinite(w.resetsAt) ? ' · ↻ ' + span(t, w.resetsAt - now) : ' · ↻ —')
+        return remaining + ' · ' + reset + (stale ? ' ' + stale : '')
       }
-      const triggerLabel = currentModel ? currentModel.name + (state.current?.reasoningEffort ? ' · ' + state.current.reasoningEffort : '') + (state.current?.provider === 'chatgpt-session' && selectedAccount ? ' · ' + selectedAccount.label : '') : text(t, 'pickerChoose')
+      const modelLabel = currentModel ? currentModel.name + (state.current?.reasoningEffort ? ' · ' + state.current.reasoningEffort : '') : text(t, 'pickerChoose')
+      const accountLabel = currentModel && state.current?.provider === 'chatgpt-session' ? selectedAccount?.label?.split('@')[0] : null
+      const triggerLabel = accountLabel ? modelLabel + ' · ' + accountLabel : modelLabel
       if (unavailable) return null
-      return h(React.Fragment, null,
-        h('style', null, css + pickerCss),
-        h('button', { ref: trigger, type: 'button', className: 'gl-picker-trigger', title: triggerLabel, onClick: () => { if (resetBusy || inFlight.current) return; if (open) { close(); return } setQuery(''); setTab(state.current?.provider === 'chatgpt-session' || !state.current?.provider ? 'gpt' : 'other'); setPreviewId(selectedId ?? null); setOtherProvider(state.current?.provider ?? null); setCommonEffort(null); setOpen(true) }, disabled: !!locked || resetBusy, 'aria-haspopup': 'dialog', 'aria-expanded': open },
-          h('span', null, triggerLabel), state.current?.provider === 'chatgpt-session' && selectedId ? h('small', { className: 'gl-picker-quota', title: quotaText(quotas[selectedId]) + ' · ' + triggerQuotaText(quotas[selectedId]) }, triggerQuotaText(quotas[selectedId])) : null, ' ▾'),
-        h('dialog', { ref: dialog, popover: 'manual', tabIndex: -1, className: 'gl-picker-dialog gl-picker-widget', 'aria-modal': false, 'aria-label': text(t, 'pickerTitle'), onCancel: e => { e.preventDefault(); close() }, onClick: e => { if (e.target === dialog.current) close() } },
+      const updatedAt = Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0))
+      const updatedDate = updatedAt > 0 ? new Date(updatedAt) : null
+      const sectionLabel = (key, trailing) => simple ? h('h3', { className: 'gl-section-label' }, text(t, key), trailing) : null
+      const previewQuota = quotas[previewAccount?.id]
+      const limitRows = previewQuota?.windows ?? []
+      return h(SimpleTheme.Provider, { value: simple },
+        h('style', null, css + pickerCss + simpleCss),
+        h('button', { ref: trigger, 'data-gl-simple': simple || undefined, type: 'button', className: 'gl-picker-trigger', 'aria-label': triggerLabel, onClick: () => { if (resetBusy || inFlight.current) return; if (open) { close(); return } setQuery(''); setTab(state.current?.provider === 'chatgpt-session' || !state.current?.provider ? 'gpt' : 'other'); setPreviewId(selectedId ?? null); setOtherProvider(state.current?.provider ?? null); setCommonEffort(null); setOpen(true) }, disabled: !!locked || resetBusy, 'aria-haspopup': 'dialog', 'aria-expanded': open },
+          h('span', { className: 'gl-trigger-model' }, modelLabel), accountLabel ? h('span', { className: 'gl-trigger-account' }, '· ' + accountLabel) : null, state.current?.provider === 'chatgpt-session' && selectedId ? h('small', { className: 'gl-picker-quota', 'aria-hidden': true }, triggerQuotaText(quotas[selectedId], true)) : null, ' ▾'),
+        h('dialog', { ref: dialog, 'data-gl-simple': simple || undefined, popover: 'manual', tabIndex: -1, className: 'gl-picker-dialog gl-picker-widget', 'aria-modal': false, 'aria-label': text(t, 'pickerTitle'), onCancel: e => { e.preventDefault(); close() }, onClick: e => { if (e.target === dialog.current) close() } },
           h('div', { className: 'gl-picker-shell' },
-            h('header', { className: 'gl-picker-head' }, h('strong', null, text(t, 'pickerTitle')),
-              h('time', { className: 'gl-header-updated', title: text(t, 'updatedAt', { time: new Date(Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0))).toLocaleString() }) },
-                Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0)) > 0 ? new Date(Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0))).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' }) + ' · ' + clockTime(Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0))) : '—'),
+            h('header', { className: 'gl-picker-head' },
+               h('div', { className: 'gl-picker-provider-tabs', role: 'group', 'aria-label': text(t, 'pickerTitle') },
+                 h('button', { className: 'gl-model-cell', type: 'button', 'aria-pressed': tab === 'gpt', disabled: resetBusy, onClick: () => switchTab('gpt') }, 'ChatGPT'),
+                 h('button', { className: 'gl-model-cell', type: 'button', 'aria-pressed': tab === 'other', disabled: resetBusy, onClick: () => switchTab('other') }, text(t, 'pickerTabOther'))),
+              h(updatedDate ? 'time' : 'span', { className: 'gl-header-updated', dateTime: updatedDate?.toISOString() },
+                text(t, 'updatedAt', { time: updatedDate ? updatedDate.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' }) + ' · ' + clockTime(updatedAt) : '—' })),
               h('button', { type: 'button', className: 'gl-icon', 'aria-label': text(t, 'pickerRefresh'), 'aria-busy': refreshingAll, 'data-spin': refreshingAll ? 'true' : undefined, disabled: selecting || resetBusy || refreshingAll, onClick: async () => {
                 if(refreshAllLock.current)return
                 refreshAllLock.current=true;setRefreshingAll(true)
                 try { const ids=accounts.filter(a=>a.configured).map(a=>a.id); await Promise.all([directory.load().catch(e=>setError(e.message)),refresh(),loadQuota(ids,true),showResets ? loadResets(ids,true) : undefined]) }
                 finally {refreshAllLock.current=false;setRefreshingAll(false)}
               } }, RefreshIcon),
-              h('button', { type: 'button', className: 'gl-icon', 'aria-label': text(t, 'pickerClose'), disabled: selecting || resetBusy, onClick: close }, '×')),
+              h('button', { type: 'button', className: 'gl-icon', 'aria-label': text(t, 'pickerClose'), disabled: selecting || resetBusy, onClick: close }, CloseIcon)),
             tab === 'other' ? h('input', { className: 'gl-input gl-picker-search', value: query, placeholder: text(t, 'pickerChoose'), 'aria-label': text(t, 'pickerSearch'), onChange: e => setQuery(e.target.value) }) : null,
-            h('div', { className: 'gl-compact-tabs', role: 'group', 'aria-label': text(t, 'pickerTitle') },
-              h('button', { type: 'button', 'aria-pressed': tab === 'gpt', disabled: resetBusy, onClick: () => { setTab('gpt'); setQuery(''); setCommonEffort(null) } }, 'ChatGPT'),
-              h('button', { type: 'button', 'aria-pressed': tab === 'other', disabled: resetBusy, onClick: () => { setTab('other'); setQuery(''); setCommonEffort(null) } }, text(t, 'pickerTabOther')),
-              h(NewChatDefaults, { open, combo: newChatCombo(state.current, nativeModels, previewAccount, displayedEffort, tab), disabled: !!locked, selecting, t })),
-            busy ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'pickerBusy')) : null,
+            busy ? h('p', { className: 'gl-picker-info gl-picker-busy', role: 'status' }, text(t, 'pickerBusy')) : null,
             accountError ? h('p', { className: 'gl-picker-info', role: 'alert' }, accountError) : !snapshot ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'loading')) : !accounts.length ? h('p', { className: 'gl-picker-info' }, text(t, 'pickerEmptyAccounts')) : null,
             error || state.error ? h('p', { className: 'gl-picker-info', role: 'alert' }, error || state.error) : null,
             h('div', { className: 'gl-picker-list' },
               tab === 'gpt' ? h(React.Fragment, null,
-                h(FanAccounts, { accounts, previewId: previewAccount?.id, currentId: state.current?.provider === 'chatgpt-session' ? selectedId : null,
+                sectionLabel('sectionAccount'),
+                 simple && accounts.length <= 1 ? h('p', { className: 'gl-simple-account' }, previewAccount?.label ?? text(t, 'pickerEmptyAccounts')) : h(FanAccounts, { accounts, previewId: previewAccount?.id, currentId: state.current?.provider === 'chatgpt-session' ? selectedId : null,
                   onPreview: id => { setPreviewId(id); setQuery('') }, quotaText, compactQuota, quotas, selecting: selecting || resetBusy, t, orbLink, now, resets: showResets ? resets : null }),
-                 (showResets || resetBusy) && previewAccount?.configured ? h(ResetMenu, { key: previewAccount.id, t, accountId: previewAccount.id, accountLabel: previewAccount.label, autoOpen: true, selecting, disabled: resetUnavailable || selecting, onBusyChange: setResetBusy, onConsumed: id => { void loadQuota([id], true); void loadResets([id], true) } }) : null)
+                 accounts.length <= 1 ? sectionLabel('sectionLimits') : null,
+                 simple && !resetBusy ? accounts.length > 1 ? null : h('ul', { className: 'gl-simple-limits' }, limitRows.length ? limitRows.map(w => {
+                   const remaining = Number.isFinite(w.usedPercent) ? Math.max(0, Math.min(100, 100 - w.usedPercent)) : null
+                   return h('li', { key: w.id },
+                     h('span', null, windowLabel(t, w) + ' · ' + triggerQuotaText({ windows: [w], freshness: previewQuota.freshness })),
+                     remaining === null ? null : h('div', { className: 'gl-simple-limit-track', 'aria-hidden': true, 'data-stale': previewQuota.freshness === 'stale' || undefined },
+                       h('span', { className: 'gl-simple-limit-fill', style: { width: remaining + '%' } })))
+                 }) : h('li', null, text(t, 'pickerUnknown'))) : previewAccount?.configured ? h(ResetMenu, { key: previewAccount.id, t, accountId: previewAccount.id, accountLabel: previewAccount.label, autoOpen: true, selecting, disabled: resetUnavailable || selecting, onBusyChange: setResetBusy, onConsumed: id => { void loadQuota([id], true); void loadResets([id], true) } }) : null)
                 : h('select', { className: 'gl-input gl-compact-provider', value: previewGroup?.id ?? '', 'aria-label': text(t, 'otherProvidersBlock'), onChange: e => { setOtherProvider(e.target.value); setCommonEffort(null); setQuery('') } }, otherGroups.map(g => h('option', { value: g.id, key: g.id }, g.name))),
-              levels.length ? h('div', { className: 'gl-efforts', role: 'group', 'aria-label': text(t, 'pickerReasoning') },
+              sectionLabel('sectionEffort'),
+               levels.length ? h('div', { className: 'gl-efforts', role: 'group', 'aria-label': text(t, 'pickerReasoning') },
                 levels.map((level, index) => h(ResetChoiceCard, { className: 'gl-effort-button', type: 'button', key: level.id, blocked: selecting, disabled: !selecting && (busy || resetBusy), 'aria-pressed': displayedEffort === level.id, onClick: () => void changeEffort(level.id) }, h(MiniCardOrb, { seed: index + 1 }), h('span', { className: 'gl-mini-label' }, level.id)))) : null,
-              h('div', { className: 'gl-model-grid' }, visibleModels.map(model => {
-                const active = previewIsCurrent && state.current?.model === model.id
+              sectionLabel('sectionModel', tab === 'gpt' && visibleModels.some(model => model.id === 'gpt-6.2-sol')
+                 ? h('span', { className: 'gl-model-recommendation' }, ModelStar, '— ' + text(t, 'recommendedModel')) : null),
+               h('div', { className: 'gl-model-grid' }, visibleModels.map(model => {
+                const recommended = simple && tab === 'gpt' && model.id === 'gpt-6.2-sol'
+                 const active = previewIsCurrent && state.current?.model === model.id
                 const unsupportedEffort = !!model.reasoning?.efforts?.length && !!displayedEffort && !model.reasoning.efforts.some(level => level.id === displayedEffort)
                 return h(ResetChoiceCard, { type: 'button', className: 'gl-model-cell', key: model.id, 'aria-pressed': active,
+                   'aria-label': recommended ? model.name + ' — ' + text(t, 'recommendedModel') : undefined,
                   blocked: selecting, disabled: !selecting && (busy || resetBusy || unsupportedEffort || (tab === 'gpt' && !previewAccount?.configured)),
-                  title: model.name + ' · ' + (displayedEffort ?? ''), onClick: () => void choose(tab === 'gpt' ? previewAccount : null, provider, model) },
-                  h(MiniCardOrb, { seed: visibleModels.indexOf(model) + 5 }), h('span', { className: 'gl-mini-label' }, model.name))
-              })),
+                  onClick: () => void choose(tab === 'gpt' ? previewAccount : null, provider, model) },
+                  h(MiniCardOrb, { seed: visibleModels.indexOf(model) + 5 }), h('span', { className: 'gl-mini-label' }, model.name), recommended ? ModelStar : null)
+              }), reservedModels.map(id => h('span', { key: 'reserved:' + id, className: 'gl-model-cell', style: { visibility: 'hidden' }, 'aria-hidden': true }))),
+               !simple && tab === 'gpt' && availableCatalog.rows.filter(row => row.registration === 'unconfirmed').map(row => h('p', { key: row.id, className: 'gl-note' }, row.id + ' — ' + text(t, 'catalogUnconfirmed'))),
+              (tab === 'gpt' || canSwitchMode) ? h('div', { className: 'gl-picker-footer' },
+                 tab === 'gpt' ? h(NewChatDefaults, { open, combo: newChatCombo(state.current, nativeModels, previewAccount, displayedEffort, tab), disabled: !!locked, selecting, t }) : null,
+                 canSwitchMode ? h('label', { className: 'gl-new-chat-defaults gl-picker-admin-switch' }, 'User',
+                   h('input', { type: 'checkbox', role: 'switch', checked: !simple, 'aria-label': text(t, 'developerMode'), disabled: resetBusy || selecting, onChange: event => {
+                     if (resetBusy || inFlight.current) return
+                     try { developerUnlocked.write(true); developerMode.write(event.target.checked) } catch { setError(text(t, 'developerError')) }
+                   } }), 'Admin') : null) : null,
               !visibleModels.length ? h('p', { className: 'gl-note', role: 'status' }, text(t, state.status === 'loading' ? 'pickerLoad' : query ? 'pickerNoResults' : 'pickerEmptyModels')) : null,
               null))))
 
@@ -1833,6 +1993,19 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, copy), 'dsh-gpt-link: locale')
         const t = ctx.locale.bind(NS)
+        ctx.effect(() => {
+          const controller = new AbortController()
+          request('api/chatgpt-accounts', undefined, controller.signal).then(snapshot => {
+            if (controller.signal.aborted || !Array.isArray(snapshot?.accounts)) return
+            for (const account of snapshot.accounts) if (account?.configured && typeof account.id === 'string') refreshCatalog(account.id)
+          }).catch(() => {})
+          return () => {
+            controller.abort()
+            for (const pending of catalogRequests.values()) pending.abort()
+            catalogRequests.clear()
+            catalogCache.clear()
+          }
+        }, 'dsh-gpt-link: warm model catalog')
         // Navigation keeps the host's own icon; do not mutate other slots' DOM.
         // Do not filter another provider's DOM or auto-select a model/account.
         ctx.slots.inject('conversation.input.model', () => ctx.slots.register({

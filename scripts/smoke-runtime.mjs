@@ -89,14 +89,14 @@ assert.equal((await call(`/api/chatgpt-resets?accountId=${id}`)).data.error, 'RE
 const defaults = (await call('/api/chatgpt-defaults')).data
 assert.equal(defaults.enabled, true)
 assert.equal(defaults.accountId, id)
-assert.equal(defaults.model, 'gpt-6.1-sol')
+assert.equal(defaults.model, 'gpt-6.2-sol')
 assert.equal(defaults.reasoningEffort, 'low')
 let selection
 await listeners.get('agent/created')({ source: 'startup', agent: {
   session: { id: 'synthetic-new-chat', firstLiveSeq: 0, header: { isSeeded: false } },
   model: { select(value) { selection = value } },
 } })
-assert.deepEqual(selection, { provider: 'chatgpt-session', model: 'gpt-6.1-sol', reasoningEffort: 'low' })
+assert.deepEqual(selection, { provider: 'chatgpt-session', model: 'gpt-6.2-sol', reasoningEffort: 'low' })
 assert.equal((await call('/api/chatgpt-accounts?sessionId=synthetic-new-chat')).data.sessionAccountId, id)
 selection = undefined
 await listeners.get('agent/created')({ source: 'resume', agent: {

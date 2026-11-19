@@ -44,8 +44,8 @@ test('catalog whitelists real-like fields without inferring compatibility, inclu
   for (const row of rows) Object.assign(row, { description: PRIVATE, instructions: PRIVATE, system_prompt: PRIVATE, headers: { authorization: PRIVATE }, schema: { secret: PRIVATE }, disabled: true, compatible: false })
   const result = summarizeCatalog({ models: rows, secrets: PRIVATE }, new Set(['gpt-6.1-sol']))
   assert.deepEqual(result, [
-    { id: 'gpt-6.1-sol', native: true, visibility: 'list', toolMode: 'direct', responsesLite: false, experimentalToolNames: ['web_search', 'image_generation'], reasoningLevels: ['low', 'high'], defaultReasoning: 'low', input: ['text', 'image'], contextWindow: 272000 },
-    { id: 'gpt-6.2', native: false, visibility: 'list', toolMode: 'code_mode_only', responsesLite: true, experimentalToolNames: ['web_search', 'computer_use', 'other_tool'], reasoningLevels: ['low', 'high'], defaultReasoning: 'low', input: ['text', 'image'], contextWindow: 272000 },
+    { id: 'gpt-6.1-sol', native: true, visibility: 'list', registration: 'known', maxTokens: null, toolMode: 'direct', responsesLite: false, experimentalToolNames: ['web_search', 'image_generation'], reasoningLevels: ['low', 'high'], defaultReasoning: 'low', input: ['text', 'image'], contextWindow: 272000 },
+    { id: 'gpt-6.2', native: false, visibility: 'list', registration: 'unconfirmed', maxTokens: null, toolMode: 'code_mode_only', responsesLite: true, experimentalToolNames: ['web_search', 'computer_use', 'other_tool'], reasoningLevels: ['low', 'high'], defaultReasoning: 'low', input: ['text', 'image'], contextWindow: 272000 },
   ])
   assert.ok(!JSON.stringify(result).includes(PRIVATE))
   assert.ok(result.every(row => !('compatible' in row) && !('disabled' in row) && !('supported' in row)))
@@ -57,7 +57,7 @@ test('catalog normalizer rejects unknown schema and bounds/filters field values 
     experimental_supported_tools: [null, { name: '<secret>' }, 'web_search', ...Array(70).fill('safe_tool')], supported_reasoning_levels: [{ effort: 'high' }, { effort: 'high' }, { effort: '<secret>' }],
     default_reasoning_level: 'unsafe value', input_modalities: ['secret', 'text', 'image', 'audio', 'video', 'text'], context_window: Number.MAX_SAFE_INTEGER }, model('valid-id')]
   const [row] = summarizeCatalog({ models: rows }, new Set())
-  assert.deepEqual({ ...row, experimentalToolNames: [] }, { id: 'valid-id', native: false, visibility: null, toolMode: null, responsesLite: null,
+  assert.deepEqual({ ...row, experimentalToolNames: [] }, { id: 'valid-id', native: false, visibility: null, registration: 'unconfirmed', maxTokens: null, toolMode: null, responsesLite: null,
     experimentalToolNames: [], reasoningLevels: ['high'], defaultReasoning: null, input: ['text', 'image', 'audio', 'video'], contextWindow: null })
   assert.equal(row.experimentalToolNames.length, 50)
   assert.equal(summarizeCatalog({ models: rows }, new Set()).length, 1)

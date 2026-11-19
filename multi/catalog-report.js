@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { grantOf, isExpired } from '../lib/quota/grant.js'
+import { catalogIdentity, confirmedCatalogModel } from './catalog-registration.js'
+import { MODEL_IDS } from './routing.js'
 
 export const CATALOG_REPORT_URL = 'https://chatgpt.com/backend-api/codex/models?client_version=0.166.0'
 const CLIENT_VERSION = '0.166.0'
@@ -8,16 +10,25 @@ const safeWord = value => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._
 const fail = code => { throw Object.assign(new Error(code), { code }) }
 const SAFE_ERRORS = new Set(['CATALOG_SIGNED_OUT', 'CATALOG_TOKEN_EXPIRED', 'CATALOG_AUTH_REJECTED', 'CATALOG_THROTTLED', 'CATALOG_HTTP', 'CATALOG_PAYLOAD', 'CATALOG_TOO_LARGE', 'CATALOG_TIMEOUT', 'CATALOG_NETWORK', 'CATALOG_STOPPED', 'CATALOG_ACCOUNT_CHANGED', 'ACCOUNT_NOT_FOUND', 'ACCOUNT_SIGNED_OUT', 'LOGIN_IN_PROGRESS', 'PLUGIN_STOPPED'])
 
-/** Diagnostics only. No inference, refresh, metadata import, capability verdicts or
- * selection changes. Never forward raw server objects, prompts, headers or grants. */
-export function summarizeCatalog(payload, nativeIds) {
+/** Never forward raw server objects, prompts, headers, compatibility claims or grants. */
+export function summarizeCatalog(payload, nativeIds, register) {
   if (!payload || !Array.isArray(payload.models) || payload.models.length > 1000) fail('CATALOG_PAYLOAD')
-  const seen = new Set()
+  const seen = new Set(), duplicate = new Set()
+  for (const row of payload.models) {
+    const id = safeWord(row?.slug)
+    if (!id) continue
+    if (seen.has(id)) duplicate.add(id)
+    seen.add(id)
+  }
+  const registered = register?.(payload.models.flatMap(row => duplicate.has(row?.slug) ? [] : [confirmedCatalogModel(row)])) ?? new Set()
+  seen.clear()
   return payload.models.flatMap(row => {
     const id = safeWord(row?.slug)
     if (!id || seen.has(id)) return []
     seen.add(id)
     return [{ id, native: nativeIds.has(id), visibility: safeWord(row.visibility),
+      registration: MODEL_IDS.includes(id) ? 'known' : registered.has(id) ? 'registered' : 'unconfirmed',
+      maxTokens: Number.isSafeInteger(row.max_output_tokens) && row.max_output_tokens > 0 && row.max_output_tokens <= 1000000 ? row.max_output_tokens : null,
       toolMode: safeWord(row.tool_mode), responsesLite: typeof row.use_responses_lite === 'boolean' ? row.use_responses_lite : null,
       experimentalToolNames: Array.isArray(row.experimental_supported_tools) ? row.experimental_supported_tools.map(item => safeWord(typeof item === 'string' ? item : item?.name ?? item?.type)).filter(Boolean).slice(0, 50) : [],
       reasoningLevels: Array.isArray(row.supported_reasoning_levels) ? [...new Set(row.supported_reasoning_levels.map(level => safeWord(level?.effort)).filter(Boolean))].slice(0, 20) : [],
@@ -53,7 +64,7 @@ async function boundedJson(response, signal) {
   }
 }
 
-export function createCatalogReporter({ accounts, nativeIds = [], fetch: http = globalThis.fetch, now = Date.now, timeoutMs = 15000 }) {
+export function createCatalogReporter({ accounts, registry, nativeIds = [], fetch: http = globalThis.fetch, now = Date.now, timeoutMs = 15000 }) {
   const active = new Map(), recent = new Map(), controllers = new Set()
   const ids = new Set(nativeIds)
   let stopped = false
@@ -87,11 +98,15 @@ export function createCatalogReporter({ accounts, nativeIds = [], fetch: http = 
         }
         fail('CATALOG_HTTP')
       }
-      const models = summarizeCatalog(await boundedJson(response, controller.signal), ids)
+      const payload = await boundedJson(response, controller.signal)
       controller.signal.throwIfAborted()
       const current = grantOf(await accounts.recordStore(id).readRecord())
+      controller.signal.throwIfAborted()
       if (!current || current.accountId !== grant.accountId) fail('CATALOG_ACCOUNT_CHANGED')
       if (stopped) fail('CATALOG_STOPPED')
+      const identity = catalogIdentity(id, current.accountId)
+      if (registry && lease.replayIdentity !== identity) fail('CATALOG_ACCOUNT_CHANGED')
+      const models = summarizeCatalog(payload, ids, registry && (profiles => registry.replace(id, identity, profiles)))
       return { checkedAt: now(), clientVersion: CLIENT_VERSION, models, error: null, retryAt: null }
     } catch (error) {
       const code = stopped ? 'CATALOG_STOPPED' : controller.signal.aborted ? 'CATALOG_TIMEOUT' : SAFE_ERRORS.has(error?.code) ? error.code : 'CATALOG_NETWORK'
@@ -104,7 +119,19 @@ export function createCatalogReporter({ accounts, nativeIds = [], fetch: http = 
       if (stopped) return Promise.resolve(empty('CATALOG_STOPPED'))
       if (active.has(id)) return active.get(id)
       const previous = recent.get(id)
-      if (previous && previous.until > now()) return Promise.resolve(structuredClone(previous.report))
+      if (previous && previous.until > now()) {
+        const report = structuredClone(previous.report)
+        const registered = report.models.filter(model => model.registration === 'registered')
+        if (registered.length) return (async () => {
+          try {
+            const current = grantOf(await accounts.recordStore(id).readRecord())
+            if (stopped) return empty('CATALOG_STOPPED')
+            const identity = current && catalogIdentity(id, current.accountId)
+            return registered.every(model => registry.allowed(id, identity, model.id)) ? report : empty('CATALOG_ACCOUNT_CHANGED')
+          } catch { return empty(stopped ? 'CATALOG_STOPPED' : 'CATALOG_ACCOUNT_CHANGED') }
+        })()
+        return Promise.resolve(report)
+      }
       const work = run(id).then(report => {
         // A small anti-double-click cache only; reports are not model availability decisions.
         if (!stopped && report.error !== 'CATALOG_THROTTLED') recent.set(id, { report, until: now() + 10000 })
@@ -122,9 +149,9 @@ export function createCatalogReporter({ accounts, nativeIds = [], fetch: http = 
   }
 }
 
-export async function installCatalogReport(ctx, accounts) {
+export async function installCatalogReport(ctx, accounts, registry) {
   const { openaiCodexProvider } = await ctx.loader.import('@earendil-works/pi-ai/providers/openai-codex')
-  const reporter = createCatalogReporter({ accounts, nativeIds: openaiCodexProvider().getModels().map(model => model.id) })
+  const reporter = createCatalogReporter({ accounts, registry, nativeIds: openaiCodexProvider().getModels().map(model => model.id) })
   ctx.effect(() => () => reporter.dispose(), 'chatgpt: read-only catalog report')
   ctx.connection.fetch.register({ path: '/api/chatgpt-catalog-report', methods: ['GET'], requestBody: 'buffered',
     async fetch(request) {

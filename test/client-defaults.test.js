@@ -9,6 +9,7 @@ function fixture(fetch) {
   const slots = [], effects = []
   let cursor = 0, definition, tree
   const react = {
+    createContext(value) { return { value } },
     createElement(type, props, ...children) { return { type, props: props ?? {}, children: children.flat(Infinity).filter(Boolean) } },
     useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], v => { slots[i] = typeof v === 'function' ? v(slots[i]) : v }] },
     useRef(initial) { const i = cursor++; if (!(i in slots)) slots[i] = { current: initial }; return slots[i] },

@@ -11,7 +11,8 @@ const cardSource = source.slice(start, end)
 
 test('temporary picker lock blocks activation without native disabled dimming', () => {
   const Card = vm.runInNewContext(cardSource + '\nResetChoiceCard', {
-    React: { useRef: current => ({ current }), useEffect() {} },
+    SimpleTheme: {},
+    React: { useContext: () => false, useRef: current => ({ current }), useEffect() {} },
     h: (_, props) => props,
   })
   let clicks = 0

@@ -39,25 +39,33 @@ test('reset HTTP actions reject missing CSRF and cross-site requests before cons
   }
   assert.equal(f.posted, 0); f.close()
 })
-test('HTTP consume requires both user confirmation stages, then invalidates quota', async () => {
+test('HTTP consume needs both confirmation stages and a fresh nonce, but no password', async t => {
   const f = fixture()
+  t.after(() => f.close())
+  const consumeWith = nonce => ({ action: 'consume', accountId: 'a', nonce })
   const one = await f.call({ action: 'begin', accountId: 'a', creditId: 'test-credit' })
   assert.equal(one.body.stage, 1)
-  assert.equal((await f.call({ action: 'consume', accountId: 'a', nonce: one.body.nonce, password: 'theseeker' })).status, 400)
+  assert.equal((await f.call(consumeWith(one.body.nonce))).body.error, 'RESET_CONFIRMATION_INVALID')
   assert.equal(f.posted, 0)
   const two = await f.call({ action: 'advance', accountId: 'a', nonce: one.body.nonce })
   assert.equal(two.body.stage, 2)
-  const consume = { action: 'consume', accountId: 'a', nonce: two.body.nonce }
-  for (const password of [undefined, '', 'wrong', 123]) {
-    const rejected = await f.call({ ...consume, password })
+  assert.notEqual(two.body.nonce, one.body.nonce)
+  for (const nonce of [undefined, one.body.nonce]) {
+    const rejected = await f.call(consumeWith(nonce))
     assert.equal(rejected.status, 400)
-    assert.equal(rejected.body.error, 'RESET_PASSWORD_INVALID')
-    assert.equal(f.posted, 0); assert.equal(f.invalidated, 0)
+    assert.equal(rejected.body.error, 'RESET_CONFIRMATION_INVALID')
   }
-  const final = await f.call({ ...consume, password: 'theseeker' })
+  const consume = consumeWith(two.body.nonce)
+  const forbidden = await f.call(consume, { 'content-type': 'application/json' })
+  assert.equal(forbidden.status, 403)
+  assert.equal(forbidden.body.error, 'RESET_CSRF_INVALID')
+  assert.equal(f.posted, 0); assert.equal(f.invalidated, 0)
+  const final = await f.call(consume)
+  assert.equal(final.status, 200)
   assert.equal(final.body.outcome, 'reset'); assert.equal(f.posted, 1); assert.equal(f.invalidated, 1)
-  await f.call({ ...consume, password: 'theseeker' })
-  assert.equal(f.posted, 1); f.close()
+  const replay = await f.call(consume)
+  assert.deepEqual(replay, final)
+  assert.equal(f.posted, 1)
 })
 test('bridge synthetic origin accepts secret-header requests, including absent browser-only headers', async () => {
   const f = fixture(), token = await f.token()

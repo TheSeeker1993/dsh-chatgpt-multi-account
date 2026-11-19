@@ -4,14 +4,17 @@ import test from 'node:test'
 import vm from 'node:vm'
 
 const source = readFileSync(new URL('../client/index.js', import.meta.url), 'utf8')
-const preference = source.slice(source.indexOf('    const resetDisplayKey ='), source.indexOf('    const useResetDisplay ='))
+const preference = source.slice(source.indexOf('    function displayPreference('), source.indexOf('    const SimpleTheme ='))
 
-test('reset display is off initially, persists across mounts and notifies subscribers', () => {
+test('developer mode is off initially, persists across mounts and notifies subscribers', () => {
   const items = new Map()
   const mount = () => {
     const window = new EventTarget()
     window.localStorage = { getItem: key => items.get(key), setItem: (key, value) => items.set(key, value) }
-    return vm.runInNewContext(preference + '\n({ readResetDisplay, writeResetDisplay, subscribeResetDisplay })', { window, EventTarget, Event })
+    let subscribe
+    const React = { useSyncExternalStore(listen, read) { subscribe = listen; return read() } }
+    const preferenceStore = vm.runInNewContext(preference + '\ndeveloperMode', { window, EventTarget, Event, React })
+    return { readResetDisplay: preferenceStore.useEnabled, writeResetDisplay: preferenceStore.write, subscribeResetDisplay: notify => subscribe(notify) }
   }
   const first = mount()
   assert.equal(first.readResetDisplay(), false)

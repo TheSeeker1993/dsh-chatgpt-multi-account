@@ -29,7 +29,7 @@ function fixture() {
   return { accounts, defaults, maps, configured, descriptions, add, writes: () => writes,
     reopen: () => new ChatDefaults({ accounts, table }) }
 }
-const initial = accountId => ({ enabled: true, accountId, model: 'gpt-6.1-sol', reasoningEffort: 'low', available: true })
+const initial = accountId => ({ enabled: true, accountId, model: 'gpt-6.2-sol', reasoningEffort: 'low', available: true })
 
 test('defaults wait for configured accounts without persisting an empty marker', async () => {
   const f = fixture()
@@ -45,7 +45,7 @@ test('defaults wait for configured accounts without persisting an empty marker',
   assert.deepEqual([...f.maps.sessions], [])
 })
 
-test('defaults persist custom selections and accept all seven models and reasoning levels while busy', async () => {
+test('defaults persist explicit selections and accept all supported models and reasoning levels while busy', async () => {
   const f = fixture(); f.add('a', 1); f.add('b', 2)
   f.maps.sessions.set('existing', { accountId: 'a' })
   f.accounts.activeAccounts.set('b', 1)
@@ -58,6 +58,14 @@ test('defaults persist custom selections and accept all seven models and reasoni
   }
   assert.deepEqual([...f.maps.sessions], [['existing', { accountId: 'a' }]])
   assert.equal(f.accounts.activeAccounts.get('b'), 1)
+})
+
+test('existing unversioned GPT-6.1 Sol low preferences are not assumed to be implicit', async () => {
+  const f = fixture(); f.add('a', 1); f.add('b', 2)
+  const old = { enabled: true, accountId: 'b', model: 'gpt-6.1-sol', reasoningEffort: 'low' }
+  f.maps.defaults.set('default', old)
+  assert.deepEqual(await f.reopen().snapshot(), { ...old, available: true })
+  assert.equal(f.writes(), 0)
 })
 
 test('saved missing or signed-out accounts never fall back or erase the selection', async () => {
@@ -109,6 +117,6 @@ test('validation fails without writing or changing bindings and a failed save do
     [{}, 'INVALID_MODEL'],
   ]) await assert.rejects(f.defaults.save(value), { code })
   assert.equal(f.writes(), 0)
-  assert.deepEqual(await f.defaults.save(valid), initial('a'))
+  assert.deepEqual(await f.defaults.save(valid), { ...initial('a'), ...valid })
   assert.deepEqual([...f.maps.sessions], [])
 })

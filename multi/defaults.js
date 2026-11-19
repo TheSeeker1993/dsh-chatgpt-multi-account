@@ -1,7 +1,7 @@
 import { AccountError } from './accounts.js'
 import { MODEL_IDS } from './routing.js'
 
-const MODEL = 'gpt-6.1-sol'
+const MODEL = 'gpt-6.2-sol'
 const REASONING = 'low'
 const LEVELS = new Set(['low', 'medium', 'high', 'xhigh'])
 const empty = () => ({ enabled: false, accountId: null, model: MODEL, reasoningEffort: REASONING })
