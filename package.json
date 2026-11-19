@@ -1,16 +1,16 @@
 {
   "name": "dsh-chatgpt-multi-account",
-  "version": "0.5.0-preview.10",
+  "version": "0.5.0-preview.11",
   "description": "Multiple ChatGPT accounts for DeepSeek Harness: isolated session routing, quotas and model-aware ChatGPT / DeepSeek web search.",
   "author": "qixxby",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account.git"
+    "url": "git+https://github.com/TheSeeker1993/dsh-chatgpt-multi-account.git"
   },
-  "homepage": "https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account",
+  "homepage": "https://github.com/TheSeeker1993/dsh-chatgpt-multi-account",
   "bugs": {
-    "url": "https://github.com/qixxby/dsh-chatgpt-multi-account/issues"
+    "url": "https://github.com/TheSeeker1993/dsh-chatgpt-multi-account/issues"
   },
   "type": "module",
   "engines": {

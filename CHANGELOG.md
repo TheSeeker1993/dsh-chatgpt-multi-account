@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0-preview.11
+
+- Point package metadata and installation instructions to the TheSeeker1993 GitHub repository, with GitFlic retained as upstream.
+- Document GitHub URL installation and one-click updates in DSH Market. Plugin runtime behavior is unchanged.
+
 ## 0.5.0-preview.10
 
 - Simplify the default picker: show quota bars for one account or compact cards for multiple accounts. Mark GPT‑6.2 Sol as recommended.

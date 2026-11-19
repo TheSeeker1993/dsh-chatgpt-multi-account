@@ -2,7 +2,7 @@
 
 Несколько аккаунтов ChatGPT с независимым выбором для каждой сессии DSH, компактным выбором модели и отображением оставшихся лимитов подписки.
 
-**Версия 0.5.0-preview.6 · экспериментальный community-плагин.** Основной репозиторий: [GitFlic](https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account). Для доработки начните с [AGENTS.md](AGENTS.md) и [карты проекта](docs/PROJECT.md).
+**Версия 0.5.0-preview.11 · экспериментальный community-плагин.** Установка и обновления этой копии: [GitHub](https://github.com/TheSeeker1993/dsh-chatgpt-multi-account). Исходный проект: [GitFlic](https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account). Для доработки начните с [AGENTS.md](AGENTS.md) и [карты проекта](docs/PROJECT.md).
 
 Целевой диапазон DSH: **>=0.2.2-rc.3 <0.2.3**, pi-ai **1.3.0**. API и native synthetic smoke ориентированы на установленный DSH **0.2.2-rc.3**; это не подтверждение живого платного поиска или визуальной проверки. Это не официальный продукт OpenAI или DeepSeek.
 
@@ -26,15 +26,21 @@
 
 ## Установка
 
-### Из локальной папки через менеджер плагинов DSH
+### По ссылке из GitHub
 
-Клонируйте основной репозиторий GitFlic:
+В Маркете DSH откройте установку по ссылке (или выберите **Плагины → Добавить плагин**) и вставьте:
 
-```sh
-git clone https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account.git
+```text
+https://github.com/TheSeeker1993/dsh-chatgpt-multi-account
 ```
 
-Поддержка прямого GitFlic URL менеджером не проверена; используйте абсолютный локальный путь. Пакет не заявлен как опубликованный в npm.
+Используйте ссылку на репозиторий без указания ветки, тега или коммита. Маркет будет проверять версию в ветке GitHub по умолчанию (`main`). Публикация в npm не нужна.
+
+### Из локальной папки для разработки
+
+```sh
+git clone https://github.com/TheSeeker1993/dsh-chatgpt-multi-account.git
+```
 
 В менеджере плагинов DSH выберите **Добавить плагин** и укажите абсолютный путь к полученной папке. Собранные runtime-файлы уже включены: для установки не нужны `npm install` и TypeScript. Не удаляйте/не перемещайте папку, если менеджер создал ссылку на неё.
 
@@ -103,7 +109,9 @@ API Host DSH **0.2.2-rc.3** изучены по установленным ис�
 
 ## Обновление и откат
 
-Обновляйте через менеджер плагинов или получите новые исходники и следуйте подсказке менеджера о перезапуске. Перед обновлением завершите активные запросы. Для отката отключите этот пакет и включите предыдущий. Секреты/привязки автоматически не удаляются. Не включайте обе версии одновременно.
+Если плагин установлен по ссылке GitHub выше, откройте **Маркет → Установленные** и нажмите **Обновить**, когда Маркет предложит новую версию. Перед обновлением завершите активные запросы и следуйте подсказке о перезапуске. Для публикации обновления достаточно повысить `version` в `package.json` и отправить коммит в `main` на GitHub; отдельный GitHub Release не требуется.
+
+Если плагин был установлен с GitFlic, один раз установите его поверх текущей версии по ссылке GitHub выше, чтобы сменить источник. Локальные копии обновляются через Git. Не включайте две реализации `chatgpt-session` одновременно.
 
 ## Разработка и тесты
 
@@ -122,7 +130,7 @@ npm pack --dry-run
 
 ## English quick start
 
-Clone `https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account.git` and add its absolute local directory through DSH Plugin Manager. Direct GitFlic URL installation by the manager is unverified. Disable other ChatGPT Link implementations first. Add and explicitly sign into accounts under Settings → ChatGPT Link. In a session, open the model picker, preview an account, choose reasoning effort and click a model to apply both. The `chatgpt-session` provider is account-isolated; legacy `openai-codex` is not. Quotas are subscription limits, not token counts. Target engines: DSH >=0.2.2-rc.3 <0.2.3 / pi-ai 1.3.0. Installed rc.3 API inspection and synthetic native smoke do not certify live search or visual behavior.
+Install `https://github.com/TheSeeker1993/dsh-chatgpt-multi-account` via DSH Market or Plugin Manager, without a branch, tag, or commit suffix. In DSH Market, use **Installed → Update** when a newer version is offered. For development, you can clone the repository and add its absolute local directory through Plugin Manager instead. Disable other ChatGPT Link implementations first. Add and explicitly sign into accounts under Settings → ChatGPT Link. In a session, open the model picker, preview an account, choose reasoning effort and click a model to apply both. The `chatgpt-session` provider is account-isolated; legacy `openai-codex` is not. Quotas are subscription limits, not token counts. Target engines: DSH >=0.2.2-rc.3 <0.2.3 / pi-ai 1.3.0. Installed rc.3 API inspection and synthetic native smoke do not certify live search or visual behavior.
 
 For model-aware search, explicitly select **Settings → Web Search → Auto: ChatGPT / DeepSeek** (`model-aware-search`); loading this plugin never changes settings. Standalone `chatgpt-session-search` is also available. GPT search uses fixed `gpt-6.1-sol` / low reasoning with native OAuth and no chat history; it consumes ChatGPT allowance (exact cost unmeasured), not a free/unlimited service. `chatgpt-session` uses the bound account; legacy `openai-codex` always uses `legacy`. Other routes use native DeepSeek with existing billing/settings, without cross-fallback. Fetch is unchanged. Select native DeepSeek to turn Auto off. Host rc.3 APIs were inspected; no live paid-search or visual verification of this integration was performed.
 
