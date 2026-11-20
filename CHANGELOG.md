@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+
+- Publish a prebuilt GitHub Release package with a version-independent filename for installation without Git. No runtime changes from preview.11.
+
 ## 0.5.0-preview.11
 
 - Point package metadata and installation instructions to the TheSeeker1993 GitHub repository, with GitFlic retained as upstream.

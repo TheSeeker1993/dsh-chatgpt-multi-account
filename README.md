@@ -2,7 +2,7 @@
 
 Несколько аккаунтов ChatGPT с независимым выбором для каждой сессии DSH, компактным выбором модели и отображением оставшихся лимитов подписки.
 
-**Версия 0.5.0-preview.11 · экспериментальный community-плагин.** Установка и обновления этой копии: [GitHub](https://github.com/TheSeeker1993/dsh-chatgpt-multi-account). Исходный проект: [GitFlic](https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account). Для доработки начните с [AGENTS.md](AGENTS.md) и [карты проекта](docs/PROJECT.md).
+**Версия 0.5.0 · экспериментальный community-плагин.** Установка и обновления этой копии: [GitHub](https://github.com/TheSeeker1993/dsh-chatgpt-multi-account). Исходный проект: [GitFlic](https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account). Для доработки начните с [AGENTS.md](AGENTS.md) и [карты проекта](docs/PROJECT.md).
 
 Целевой диапазон DSH: **>=0.2.2-rc.3 <0.2.3**, pi-ai **1.3.0**. API и native synthetic smoke ориентированы на установленный DSH **0.2.2-rc.3**; это не подтверждение живого платного поиска или визуальной проверки. Это не официальный продукт OpenAI или DeepSeek.
 
@@ -26,7 +26,17 @@
 
 ## Установка
 
-### По ссылке из GitHub
+### Из GitHub Releases — без Git
+
+В **Плагины → Добавить плагин** вставьте ссылку на готовый пакет:
+
+```text
+https://github.com/TheSeeker1993/dsh-chatgpt-multi-account/releases/latest/download/dsh-chatgpt-multi-account.tgz
+```
+
+Эта ссылка всегда скачивает пакет из последнего обычного релиза. Кнопка **Обновить** для установки из архива доступна, только если каталог DSH Market содержит эту ссылку как источник плагина. Пока в каталоге такой записи нет, новый релиз можно установить поверх текущего по той же ссылке.
+
+### По ссылке на Git-репозиторий
 
 В Маркете DSH откройте установку по ссылке (или выберите **Плагины → Добавить плагин**) и вставьте:
 
