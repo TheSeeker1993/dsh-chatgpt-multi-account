@@ -288,7 +288,7 @@ test('installation imports native dependencies through loader and registers life
   const installation = await installChatGPTSearch(f.ctx, f.accounts)
   assert.deepEqual(imported, ['@earendil-works/pi-ai', '@earendil-works/pi-ai/providers/openai-codex', '@deepseek-ai/dsh-web'])
   assert.equal(registered.id, 'chatgpt-session-search'); assert.equal(registered.title, 'ChatGPT (session account)')
-  assert.deepEqual(Object.keys(registered.description).sort(), ['en', 'ru', 'zh'])
+  assert.deepEqual(Object.keys(registered.description).sort(), ['de', 'en', 'es', 'fr', 'ja', 'pt', 'ru', 'zh'])
   assert.equal(registered, installation.provider)
   cleanup(); assert.equal(registered.available(), false)
 })

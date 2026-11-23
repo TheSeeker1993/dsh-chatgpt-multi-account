@@ -25,6 +25,11 @@ export function createChatGPTSearchProvider(ctx, accounts, dependencies) {
       en: 'Live hosted search using actual ChatGPT subscription allowance, not paid API credits. Sends only the query. Uses the original account on the native ChatGPT route; otherwise requires this agent session’s explicit account binding.',
       ru: 'Живой поиск расходует реальную подписку ChatGPT, а не платный API. Передаётся только запрос. Встроенный маршрут ChatGPT использует исходный аккаунт; иначе нужна явная привязка аккаунта к сессии агента.',
       zh: '实时搜索消耗实际 ChatGPT 订阅额度，而非付费 API 额度。仅发送搜索词。原生 ChatGPT 路由使用原始账户；其他路由必须明确绑定当前代理会话的账户。',
+      ja: '実際の ChatGPT サブスクリプションの利用枠を使って検索します。有料 API のクレジットは使用しません。送信するのは検索クエリのみです。標準の ChatGPT 経路では元のアカウントを使用し、それ以外では現在のエージェントセッションにアカウントを明示的に紐付ける必要があります。',
+      es: 'Búsqueda en tiempo real con la cuota de la suscripción de ChatGPT, no con créditos de la API de pago. Solo se envía la consulta. La ruta nativa de ChatGPT usa la cuenta original; las demás requieren vincular una cuenta a esta sesión del agente.',
+      fr: 'Recherche en direct imputée au quota de l’abonnement ChatGPT, et non aux crédits de l’API payante. Seule la requête est envoyée. La route native ChatGPT utilise le compte d’origine ; les autres exigent un compte explicitement associé à cette session de l’agent.',
+      de: 'Live-Suche über das Kontingent des ChatGPT-Abos statt über kostenpflichtiges API-Guthaben. Nur die Suchanfrage wird gesendet. Die native ChatGPT-Route verwendet das ursprüngliche Konto; andere Routen erfordern ein ausdrücklich mit der Agentensitzung verknüpftes Konto.',
+      pt: 'Busca em tempo real usando a cota da assinatura do ChatGPT, não créditos da API paga. Só a consulta é enviada. A rota nativa do ChatGPT usa a conta original; as demais exigem que uma conta seja vinculada explicitamente a esta sessão do agente.',
     },
     available: () => loaded,
     // Tool assembly may have no initiating agent. Binding is checked only when actually invoked.

@@ -100,6 +100,11 @@ export function createAutomaticSearchProvider(ctx, chatgptProvider, deepseekProv
       en: 'Uses the actual model request route: ChatGPT search for GPT routes; native DeepSeek search for all others, respecting existing DeepSeek billing and authentication settings. No cross-provider fallback.',
       ru: 'Поиск по фактическому маршруту модели: ChatGPT для GPT, штатный DeepSeek для остальных моделей с текущими настройками оплаты и авторизации. Без переключения при ошибке.',
       zh: '按实际模型请求路由选择搜索：GPT 使用 ChatGPT，其他模型使用原生 DeepSeek，并保留现有计费及认证设置。失败时不会切换服务。',
+      ja: '実際のモデルリクエスト経路に応じて検索を選択します。GPT は ChatGPT、その他は既存の課金・認証設定を使って DeepSeek 標準検索を利用します。失敗しても別のサービスに切り替えません。',
+      es: 'Según la ruta real de la solicitud del modelo: búsqueda de ChatGPT para GPT y búsqueda nativa de DeepSeek para el resto, con la configuración actual de facturación y autenticación de DeepSeek. Si falla, no cambia de proveedor.',
+      fr: 'Suit la route réelle de la requête du modèle : recherche ChatGPT pour GPT et recherche native DeepSeek pour les autres, avec les réglages actuels de facturation et d’authentification de DeepSeek. Aucun changement de fournisseur en cas d’échec.',
+      de: 'Folgt der tatsächlichen Route der Modellanfrage: GPT nutzt die ChatGPT-Suche, alle anderen Modelle die native DeepSeek-Suche mit den vorhandenen Abrechnungs- und Anmeldeeinstellungen. Bei einem Fehler wird der Anbieter nicht gewechselt.',
+      pt: 'Segue a rota real da solicitação do modelo: busca do ChatGPT para GPT e busca nativa do DeepSeek para os demais, mantendo as configurações de cobrança e autenticação do DeepSeek. Não troca de provedor em caso de falha.',
     },
     available: () => loaded,
     async ready(route) {

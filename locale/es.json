@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "ChatGPT Link",
+    "description": "Varias cuentas de ChatGPT y cuotas por sesión. Selecciona manualmente Auto: ChatGPT / DeepSeek en Configuración → Búsqueda web; el complemento nunca cambia la configuración al cargarse. La búsqueda con GPT consume cuota de ChatGPT (no se ha medido el costo exacto); la búsqueda nativa de DeepSeek mantiene la facturación existente. La obtención de páginas web no cambia."
+  }
+}

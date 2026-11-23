@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.3
+
+- Add Japanese, Spanish, French, German and Brazilian Portuguese translations for the interface, plugin card and web search provider descriptions. The plugin follows the selected DSH language.
+- Add tests for locale registration, translation keys, interpolation variables and packaged descriptions.
+
 ## 0.5.2
 
 - Add a model-aware web search setup panel after account sign-in. Show the configured provider and explain that DeepSeek search may use DeepSeek quota even in ChatGPT chats. Switching the profile to Auto requires explicit confirmation; Fetch is unchanged.
