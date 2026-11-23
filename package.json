@@ -1,6 +1,6 @@
 {
   "name": "dsh-chatgpt-multi-account",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Multiple ChatGPT accounts for DeepSeek Harness: isolated session routing, quotas and model-aware ChatGPT / DeepSeek web search.",
   "author": "qixxby",
   "license": "MIT",

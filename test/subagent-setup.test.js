@@ -211,7 +211,7 @@ test('post-save concurrent changes fail verification without retries or false su
   const view = setupView(remote)
   view.render(); await settle(); view.render()
   view.button('setupAction').props.onClick(); view.render()
-  await view.button('confirm').props.onClick(); view.render()
+  await view.button('setupApply').props.onClick(); view.render()
   assert.equal(view.has('setupConflict', 'alert'), true)
   assert.equal(view.has('setupSaved', 'status'), false)
   assert.equal(view.has('setupReady', 'status'), false)
@@ -230,11 +230,11 @@ test('setup UI only reads on mount; opening and cancelling confirmation never wr
   assert.equal(remote.calls.mutate.length, 0)
   assert.equal(view.has('setupNeeded', 'status'), true)
   view.button('setupAction').props.onClick(); view.render()
-  assert.ok(view.button('confirm'))
+  assert.ok(view.button('setupApply'))
   assert.equal(view.has('setupConfirm'), true)
   assert.equal(remote.calls.mutate.length, 0)
   view.button('cancel').props.onClick(); view.render()
-  assert.equal(view.button('confirm'), undefined)
+  assert.equal(view.button('setupApply'), undefined)
   assert.equal(remote.calls.mutate.length, 0)
 })
 
@@ -249,12 +249,12 @@ test('setup UI confirms explicitly once, disables busy controls and guards dupli
     await new Promise(resolve => { release = resolve })
     return originalMutate(...args)
   }
-  const confirm = view.button('confirm').props.onClick
+  const confirm = view.button('setupApply').props.onClick
   const first = confirm()
   const duplicate = confirm()
   view.render()
   assert.equal(view.has('loading', 'status'), true)
-  assert.equal(view.button('confirm').props.disabled, true)
+  assert.equal(view.button('setupApply').props.disabled, true)
   assert.equal(view.button('cancel').props.disabled, true)
   await settle()
   assert.equal(typeof release, 'function')
@@ -264,7 +264,7 @@ test('setup UI confirms explicitly once, disables busy controls and guards dupli
   assert.equal(view.has('setupSaved', 'status'), true)
   assert.equal(view.has('setupReady', 'status'), true)
   assert.equal(view.button('setupAction').props.disabled, true)
-  assert.equal(view.button('confirm'), undefined)
+  assert.equal(view.button('setupApply'), undefined)
 })
 
 test('setup UI unavailable and read-only states disable configuration without writes', async () => {

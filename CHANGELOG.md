@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.2
+
+- Add a model-aware web search setup panel after account sign-in. Show the configured provider and explain that DeepSeek search may use DeepSeek quota even in ChatGPT chats. Switching the profile to Auto requires explicit confirmation; Fetch is unchanged.
+- Use separate confirmation labels for enabling Auto and applying subagent settings instead of the account-deletion label.
+- Improve the size and contrast of the new-chat defaults and Administrator mode switches.
+- Add a picker screenshot and move the optional search setup guide after the sign-in instructions.
+
 ## 0.5.1
 
 - Fix false `FORBIDDEN_ORIGIN` errors when selecting a ChatGPT account in the DSH Web UI. DSH still enforces its browser-origin and owner checks before dispatch.

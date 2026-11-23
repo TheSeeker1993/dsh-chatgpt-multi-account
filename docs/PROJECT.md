@@ -1,6 +1,6 @@
 # Передача проекта · 17.11.2026
 
-Рабочая версия: **0.5.1**. Статус публикации подтверждается отдельно после push; номер версии сам по себе не означает публикацию.
+Рабочая версия: **0.5.2**. Статус публикации подтверждается отдельно после push; номер версии сам по себе не означает публикацию.
 
 ## Что это
 Самостоятельный community-плагин DSH: несколько ChatGPT OAuth-аккаунтов, явный выбор аккаунта для каждой сессии, изолированные параллельные запросы, квоты и ручные сбросы Codex. Репозиторий этой копии: https://github.com/TheSeeker1993/dsh-chatgpt-multi-account (`origin`); исходный проект: https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account (`upstream`, на основе Clukay-Fun/dsh-gpt-link). Для выпуска новой версии этой копии увеличьте `version` в `package.json` и опубликуйте коммит в ветке `main` GitHub. Синхронизация с GitFlic не автоматическая.
@@ -72,7 +72,7 @@ UI чекбокс «Для новых чатов» отмечен только �
 ## Поиск по фактическому маршруту
 
 - Интеграция ZIP: `search/provider.js` — native OAuth GPT hosted search; `search/auto.js` — Auto и делегирование штатному DeepSeek. Используется тот же живой Accounts, общие credentials/leases, не второй экземпляр.
-- Включение только явно через **Настройки → Веб-поиск → Auto: ChatGPT / DeepSeek** (`model-aware-search`). Отдельный **ChatGPT (session account)** имеет ID `chatgpt-session-search`. Загрузка/установка никогда не выбирают провайдера и не меняют настройки. `search/setup.js` / административный tool не подключается. Fetch неизменён.
+- Включение явно через **Настройки → Веб-поиск → Auto: ChatGPT / DeepSeek** (`model-aware-search`) или через блок в ChatGPT Link после входа в аккаунт. Блок читает выбор и список провайдеров, после подтверждения меняет только `web.searchProvider` через штатный settings RPC с проверкой ревизии и контрольным чтением. Загрузка/установка ничего не меняют; при конфликте нет автоматического повтора. Отдельный **ChatGPT (session account)** имеет ID `chatgpt-session-search`. Fetch неизменён.
 - Инициатор и фактический request route фиксируются до await. `chatgpt-session` — точная session binding; `openai-codex` — только `legacy`, независимо от селектора сессии, с общим lease и без изменения binding. Отсутствующий маршрут/инициатор — явная ошибка. Никакого cross-backend/account fallback.
 - GPT: фиксированный helper `gpt-6.1-sol`, low reasoning, native OAuth, только query без истории/replay. Sources — настоящие citations завершённого hosted search. Поиск расходует ChatGPT allowance, точное списание не измерено; отдельный API-ключ не нужен, бесплатность/безлимит не обещать.
 - Остальные маршруты — native DeepSeek с существующими authorization/endpoint/count/throttling/`searchBilling` и обычной тарификацией. Не менять глобальные настройки ради dispatch. Для отключения Auto выбрать штатный DeepSeek в стандартном экране; credentials, bindings и история сохраняются.

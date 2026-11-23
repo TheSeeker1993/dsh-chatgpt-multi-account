@@ -1114,7 +1114,7 @@ window.__ModuleLoader__.load({
           h('ul', null, SUBAGENT_MODELS.map(model => h('li', { key: model }, 'chatgpt-session/' + model))),
           h('div', { className: 'gl-choices' },
             h('button', { ref: cancel, className: 'gl-btn', type: 'button', disabled: busy, onClick: () => setConfirming(false) }, text(t, 'cancel')),
-            h('button', { className: 'gl-btn', type: 'button', disabled: busy, onClick: apply }, text(t, 'confirm')))) :
+            h('button', { className: 'gl-btn', type: 'button', disabled: busy, onClick: apply }, text(t, 'setupApply')))) :
           h('div', { className: 'gl-choices' },
             h('button', { className: 'gl-btn', type: 'button', disabled: busy || !state?.writable || state.configured, onClick: () => { setSaved(false); setConfirming(true) } }, text(t, 'setupAction')),
             h('button', { className: 'gl-btn', type: 'button', disabled: busy, onClick: load }, text(t, 'refresh'))))
@@ -1122,6 +1122,93 @@ window.__ModuleLoader__.load({
     Object.assign(copy.ru, { setupTitle: 'Модели субагентов', setupReady: 'Настроено: доступны все 10 моделей ChatGPT.', setupNeeded: 'Требуется настройка.', setupAction: 'Настроить субагентов', setupNewChats: 'Применяется только к новым чатам. Субагенты наследуют выбранный аккаунт родителя.', setupConfirm: 'Включить выбор моделей и добавить эти 10 маршрутов? Остальные разрешения, включая openai-codex, сохранятся. Убрать ненужные маршруты можно в настройках Subagent.', setupSaved: 'Сохранено. Создайте новый чат, чтобы применить разрешения.', setupUnavailable: 'Настройки субагентов недоступны. Проверьте официальный плагин Subagent и обновите статус.', setupReadOnly: 'Настройки доступны только для чтения.', setupConflict: 'Настройки изменились параллельно. Обновите статус и подтвердите ещё раз.', setupFailed: 'Не удалось сохранить настройки. Обновите статус и повторите подтверждение.' })
     Object.assign(copy.en, { setupTitle: 'Subagent models', setupReady: 'Configured: all 10 ChatGPT models available.', setupNeeded: 'Setup required.', setupAction: 'Set up subagents', setupNewChats: 'Applies only to new chats. Subagents inherit the parent’s selected account.', setupConfirm: 'Enable model selection and add these 10 routes? All other permissions, including openai-codex, remain unchanged. Remove unwanted routes in Subagent settings.', setupSaved: 'Saved. Start a new chat to apply permissions.', setupUnavailable: 'Subagent settings unavailable. Check the official Subagent plugin and refresh status.', setupReadOnly: 'Settings are read-only.', setupConflict: 'Settings changed concurrently. Refresh status and confirm again.', setupFailed: 'Could not save settings. Refresh status and confirm again.' })
     Object.assign(copy.zh, { setupTitle: '子代理模型', setupReady: '已配置：全部 10 个 ChatGPT 模型可用。', setupNeeded: '需要配置。', setupAction: '配置子代理', setupNewChats: '仅适用于新会话。子代理继承父会话选择的账号。', setupConfirm: '启用模型选择并添加这 10 个路由？其他权限（包括 openai-codex）保持不变。可在 Subagent 设置中移除不需要的路由。', setupSaved: '已保存。请新建会话以应用权限。', setupUnavailable: '子代理设置不可用。请检查官方 Subagent 插件并刷新状态。', setupReadOnly: '设置为只读。', setupConflict: '设置已被其他操作修改。请刷新状态并重新确认。', setupFailed: '保存失败。请刷新状态并重新确认。' })
+
+    const AUTO_WEB_SEARCH = 'model-aware-search'
+    async function readWebSearchSetup(remote) {
+      const [settings, providers] = await Promise.all([remote.settings.describe(), remote.web.listProviders()])
+      const row = settings?.ok && Array.isArray(settings.value?.namespaces) && settings.value.namespaces.find(entry => entry?.ns === 'web')
+      const search = providers?.ok && providers.value?.search
+      if (!row || !Number.isSafeInteger(row.revision) || !row.value || !row.base || !Array.isArray(search)) throw new Error('webSearchUnavailable')
+      const provider = row.value.searchProvider ?? null
+      if (provider !== null && typeof provider !== 'string') throw new Error('webSearchUnavailable')
+      const title = search.find(entry => entry?.id === provider)?.title
+      return { provider, title: typeof title === 'string' && title ? title : provider, revision: row.revision,
+        inheritAuto: row.base.searchProvider === AUTO_WEB_SEARCH,
+        writable: settings.value.writable === true, available: search.some(entry => entry?.id === AUTO_WEB_SEARCH) }
+    }
+    async function enableWebSearchSetup(remote, confirmed) {
+      const current = await readWebSearchSetup(remote)
+      if (current.revision !== confirmed.revision || current.provider !== confirmed.provider || current.inheritAuto !== confirmed.inheritAuto) throw new Error('webSearchConflict')
+      if (!current.available) throw new Error('webSearchUnavailable')
+      if (!current.writable) throw new Error('setupReadOnly')
+      if (current.provider === AUTO_WEB_SEARCH) return current
+      const path = ['searchProvider']
+      const op = current.inheritAuto ? { op: 'unset', path } : { op: 'set', path, value: AUTO_WEB_SEARCH }
+      const result = await remote.settings.mutate('web', [op], current.revision)
+      if (!result?.ok) throw new Error(result?.error?.code === 'settings/conflict' ? 'webSearchConflict' : 'webSearchSaveUnknown')
+      const verified = await readWebSearchSetup(remote).catch(() => null)
+      if (verified?.provider !== AUTO_WEB_SEARCH || !verified.available) throw new Error('webSearchSaveUnknown')
+      return verified
+    }
+    function WebSearchSetup({ t, remote }) {
+      const [state, setState] = React.useState(null), [error, setError] = React.useState('')
+      const [busy, setBusy] = React.useState(true), [confirmed, setConfirmed] = React.useState(null)
+      const lifecycle = React.useRef(null), cancel = React.useRef(null), action = React.useRef(null)
+      const reload = React.useRef(null), group = React.useRef(null), restoreFocus = React.useRef(false)
+      const warningId = React.useId()
+      const run = async (life, expected) => {
+        if (!life || life.busy) return
+        life.busy = true; setBusy(true); setError('')
+        try {
+          const next = await (expected ? enableWebSearchSetup(remote, expected) : readWebSearchSetup(remote))
+          if (lifecycle.current === life) setState(next)
+        } catch (e) {
+          if (lifecycle.current === life) {
+            setState(null)
+            setError(['webSearchConflict', 'setupReadOnly', 'webSearchUnavailable'].includes(e?.message) ? e.message : expected ? 'webSearchSaveUnknown' : 'webSearchUnavailable')
+          }
+        } finally {
+          life.busy = false
+          if (lifecycle.current === life) { setBusy(false); setConfirmed(null) }
+        }
+      }
+      React.useEffect(() => {
+        const life = { busy: false }; lifecycle.current = life
+        setState(null); setConfirmed(null); void run(life)
+        return () => { lifecycle.current = null }
+      }, [remote])
+      React.useEffect(() => {
+        if (confirmed) cancel.current?.focus()
+        else if (restoreFocus.current) {
+          restoreFocus.current = false
+          if (document.activeElement === document.body) (action.current?.disabled === false ? action.current : reload.current)?.focus()
+        }
+      }, [confirmed])
+      const enabled = state?.provider === AUTO_WEB_SEARCH && state.available
+      const deepseek = state?.provider === null || ['deepseek-search-api', 'deepseek-official'].includes(state?.provider)
+      return h('section', { className: 'gl-account gl-subagent-setup', 'aria-label': text(t, 'webSearchTitle') },
+        h('h3', { className: 'gl-account-heading' }, text(t, 'webSearchTitle')),
+        h('p', { className: 'gl-note', role: 'status' }, busy ? text(t, 'loading') : state ? text(t, 'webSearchCurrent', { provider: state.title ?? text(t, 'webSearchNativeAuto') }) : null),
+        h('p', { className: 'gl-note' }, text(t, enabled ? 'webSearchOn' : deepseek ? 'webSearchDeepSeek' : 'webSearchHint')),
+        error ? h('p', { className: 'gl-note', role: 'alert' }, text(t, error)) : null,
+        state && !state.available ? h('p', { className: 'gl-note' }, text(t, 'webSearchUnavailable')) : null,
+        state && !state.writable ? h('p', { className: 'gl-note' }, text(t, 'setupReadOnly')) : null,
+        confirmed ? h('div', { ref: group, className: 'gl-sub', role: 'group', 'aria-label': text(t, 'webSearchTitle'), 'aria-describedby': warningId },
+          h('p', { id: warningId, className: 'gl-note' }, `${text(t, 'webSearchCurrent', { provider: confirmed.title ?? text(t, 'webSearchNativeAuto') })}. ${text(t, 'webSearchConfirm')}`),
+          h('div', { className: 'gl-choices' },
+            h('button', { ref: cancel, className: 'gl-btn', type: 'button', disabled: busy, onClick: () => { restoreFocus.current = group.current?.contains(document.activeElement); setConfirmed(null) } }, text(t, 'cancel')),
+            h('button', { className: 'gl-btn', type: 'button', disabled: busy, onClick: () => { restoreFocus.current = group.current?.contains(document.activeElement); void run(lifecycle.current, confirmed) } }, text(t, 'webSearchApply')))) :
+          h('div', { className: 'gl-choices' },
+            h('button', { ref: action, className: 'gl-btn', type: 'button', disabled: busy || !state?.available || !state.writable || enabled, onClick: () => setConfirmed(state) }, text(t, 'webSearchAction')),
+            h('button', { ref: reload, className: 'gl-btn', type: 'button', disabled: busy, onClick: () => void run(lifecycle.current) }, text(t, 'refresh'))))
+    }
+    Object.assign(copy.ru, { webSearchTitle: 'Веб-поиск по модели', webSearchCurrent: 'Провайдер в настройках DSH: {provider}', webSearchNativeAuto: 'Не задан в настройках DSH', webSearchDeepSeek: 'Если DSH использует поиск DeepSeek, он может расходовать лимит или средства DeepSeek даже в чате ChatGPT. Это касается поиска, а не обычных сообщений.', webSearchHint: 'Auto не выбран. Расход зависит от того, какого провайдера веб-поиска использует DSH.', webSearchOn: 'Auto включён: поиск в чатах ChatGPT использует лимит ChatGPT; для остальных моделей действует штатный поиск DeepSeek.', webSearchAction: 'Включить поиск по модели', webSearchConfirm: 'Заменить провайдера веб-поиска для всего профиля на Auto: ChatGPT / DeepSeek? Поиск в чатах ChatGPT будет расходовать лимит ChatGPT, а остальные модели будут использовать штатный поиск DeepSeek. Загрузка страниц (Fetch) не изменится.', webSearchUnavailable: 'Настройка недоступна. Проверьте список провайдеров в разделе «Веб-поиск» или обновите статус.', webSearchConflict: 'Настройки изменились после чтения. Обновите статус и подтвердите заново.', webSearchSaveUnknown: 'Не удалось подтвердить сохранение. Обновите статус перед повторной попыткой.' })
+    Object.assign(copy.en, { webSearchTitle: 'Model-aware web search', webSearchCurrent: 'Provider in DSH settings: {provider}', webSearchNativeAuto: 'Not set in DSH settings', webSearchDeepSeek: 'When DSH uses DeepSeek Search, it can use DeepSeek quota or incur DeepSeek charges even in a ChatGPT chat. This applies to search, not regular messages.', webSearchHint: 'This Auto mode is not selected. Usage depends on the web search provider DSH uses.', webSearchOn: 'Auto is enabled: ChatGPT search uses ChatGPT quota; other models use native DeepSeek Search.', webSearchAction: 'Enable model-aware search', webSearchConfirm: 'Switch this profile’s web search provider to Auto: ChatGPT / DeepSeek? ChatGPT search will use ChatGPT quota and other models will use native DeepSeek Search. Page fetching is unchanged.', webSearchUnavailable: 'Setting unavailable. Check the Web Search provider list or refresh the status.', webSearchConflict: 'Settings changed since they were read. Refresh and confirm again.', webSearchSaveUnknown: 'Could not verify that the setting was saved. Refresh before trying again.' })
+    Object.assign(copy.zh, { webSearchTitle: '按模型选择网页搜索', webSearchCurrent: 'DSH 设置中的搜索服务：{provider}', webSearchNativeAuto: '未在 DSH 设置中指定', webSearchDeepSeek: '如果 DSH 使用 DeepSeek 搜索，即使在 ChatGPT 会话中也可能消耗 DeepSeek 额度或产生费用。这只影响搜索，不影响普通消息。', webSearchHint: '尚未选择此自动模式。费用取决于 DSH 实际使用的搜索服务。', webSearchOn: '已启用：ChatGPT 搜索使用 ChatGPT 额度，其他模型使用原生 DeepSeek 搜索。', webSearchAction: '启用按模型选择搜索', webSearchConfirm: '将当前配置的网页搜索服务改为 Auto: ChatGPT / DeepSeek？ChatGPT 搜索将使用 ChatGPT 额度，其他模型将使用原生 DeepSeek 搜索。网页抓取不受影响。', webSearchUnavailable: '设置不可用。请检查网页搜索服务列表或刷新状态。', webSearchConflict: '设置已被其他操作修改，请刷新并重新确认。', webSearchSaveUnknown: '无法确认是否已保存，请刷新状态后再试。' })
+
+    Object.assign(copy.ru, { setupApply: 'Применить настройки', webSearchApply: 'Включить Auto' })
+    Object.assign(copy.en, { setupApply: 'Apply settings', webSearchApply: 'Enable Auto' })
+    Object.assign(copy.zh, { setupApply: '应用设置', webSearchApply: '启用 Auto' })
 
     function displayPreference(name, defaultEnabled = false) {
       const key = 'dsh-chatgpt-multi-account:' + name
@@ -1188,11 +1275,8 @@ window.__ModuleLoader__.load({
 .gl-model-cell:has(>.gl-model-star) { padding-inline:16px }
 .gl-model-star { display:block; flex:none; color:var(--dsw-alias-state-warning-primary,#c59a53); pointer-events:none }
 .gl-model-cell>.gl-model-star { position:absolute; inset-inline-end:5px; inset-block:0; margin-block:auto; z-index:1 }
-.gl-picker-footer .gl-new-chat-defaults { margin-inline-start:0; font-size:10px; line-height:16px }
+.gl-picker-footer .gl-new-chat-defaults { margin-inline-start:0; min-height:26px; font-size:11px; line-height:16px }
 .gl-picker-footer .gl-picker-admin-switch { margin-inline-start:auto }
-.gl-picker-footer .gl-new-chat-defaults input { width:20px; height:12px; padding:1px }
-.gl-picker-footer .gl-new-chat-defaults input::before { width:8px; height:8px }
-.gl-picker-footer .gl-new-chat-defaults input:checked::before { transform:translateX(8px) }
 .gl-picker-head .gl-picker-provider-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; flex:0 1 127px; min-width:0; margin-inline-end:auto }
 .gl-picker-head .gl-picker-provider-tabs>.gl-model-cell { justify-content:center; text-align:center; font-size:11px; line-height:16px; height:30px; min-height:30px; padding:3px 4px }
 .gl-picker-provider-tabs>.gl-model-cell[aria-pressed=true] { color:var(--dsw-alias-state-business-primary); border-color:var(--dsw-alias-state-business-primary) }
@@ -1240,6 +1324,7 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
         !snapshot && !error ? h('p', null, text(t, 'loading')) : null,
         snapshot?.accounts.length === 0 ? h('p', { className: 'gl-note' }, text(t, 'emptyAccounts')) : null,
         snapshot?.accounts.map(account => h(AccountPanel, { key: account.id, t, account, pending, mutate })),
+        snapshot?.accounts.some(account => account.configured) ? h(WebSearchSetup, { t, remote }) : null,
         h(SubagentSetup, { t, remote }),
         h(AdminModeSetting, { t })))
     }
@@ -1431,9 +1516,9 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
 @media(prefers-reduced-motion:reduce){.gl-fan-card{will-change:auto}}
 
 .gl-compact-tabs{display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:0 12px 8px;flex:none}
-.gl-new-chat-defaults{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:11px;color:var(--dsw-alias-label-secondary);cursor:pointer;position:relative}
-.gl-new-chat-defaults input{appearance:none;box-sizing:border-box;flex:none;width:28px;height:16px;margin:0;padding:2px;border:1px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-layer-1);cursor:inherit}
-.gl-new-chat-defaults input::before{content:'';display:block;width:10px;height:10px;border-radius:50%;background:var(--dsw-alias-label-secondary)}
+.gl-new-chat-defaults{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-primary);cursor:pointer;position:relative}
+.gl-new-chat-defaults input{appearance:none;box-sizing:border-box;flex:none;width:28px;height:16px;margin:0;padding:2px;border:1px solid var(--dsw-alias-label-secondary);border-radius:999px;background:var(--dsw-alias-bg-layer-1);cursor:inherit}
+.gl-new-chat-defaults input::before{content:'';display:block;width:10px;height:10px;border-radius:50%;background:var(--dsw-alias-label-primary)}
 .gl-new-chat-defaults input:checked{background:var(--dsw-alias-state-business-primary);border-color:transparent}
 .gl-new-chat-defaults input:checked::before{transform:translateX(12px);background:var(--dsw-alias-bg-layer-1)}
 @media(forced-colors:active){.gl-new-chat-defaults input{appearance:auto}}
@@ -1971,6 +2056,16 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
       apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, copy), 'dsh-gpt-link: locale')
         const t = ctx.locale.bind(NS)
+        // Keep the core picker/settings usable in profiles without the web RPC.
+        let readWebProviders
+        ctx.inject(['remote.web'], child => {
+          const read = () => child.remote.web.listProviders()
+          child.effect(() => {
+            readWebProviders = read
+            return () => { if (readWebProviders === read) readWebProviders = undefined }
+          }, 'chatgpt: web search provider discovery')
+        })
+        const settingsRemote = { settings: ctx.remote.settings, web: { listProviders: () => readWebProviders?.() } }
         ctx.effect(() => {
           const controller = new AbortController()
           request('api/chatgpt-accounts', undefined, controller.signal).then(snapshot => {
@@ -1996,7 +2091,7 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
           label: () => t('nav'),
           locale: NS,
         }, function GptLinkSettings() {
-          return h(GptLinkSection, { t, remote: ctx.remote })
+          return h(GptLinkSection, { t, remote: settingsRemote })
         }))
       },
     }
