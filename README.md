@@ -1,8 +1,8 @@
 # ChatGPT Multi-account for DeepSeek Harness
 
-Несколько аккаунтов ChatGPT с независимым выбором для каждой сессии DSH, компактным выбором модели и отображением оставшихся лимитов подписки.
+Несколько аккаунтов ChatGPT с независимым выбором для каждой сессии DSH, компактным выбором модели и отображением оставшихся лимитов подписки. · [简体中文简介](#中文简介)
 
-**Версия 0.5.0 · экспериментальный community-плагин.** Установка и обновления этой копии: [GitHub](https://github.com/TheSeeker1993/dsh-chatgpt-multi-account). Исходный проект: [GitFlic](https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account). Для доработки начните с [AGENTS.md](AGENTS.md) и [карты проекта](docs/PROJECT.md).
+**Версия 0.5.1 · community-плагин.** Установка и обновления этой копии: [GitHub](https://github.com/TheSeeker1993/dsh-chatgpt-multi-account). Исходный проект: [GitFlic](https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account). Для доработки начните с [AGENTS.md](AGENTS.md) и [карты проекта](docs/PROJECT.md).
 
 Целевой диапазон DSH: **>=0.2.2-rc.3 <0.2.3**, pi-ai **1.3.0**. API и native synthetic smoke ориентированы на установленный DSH **0.2.2-rc.3**; это не подтверждение живого платного поиска или визуальной проверки. Это не официальный продукт OpenAI или DeepSeek.
 
@@ -68,11 +68,15 @@ git clone https://github.com/TheSeeker1993/dsh-chatgpt-multi-account.git
 
 Название карточки — введённая пользователем метка, а не подтверждённый email аккаунта OAuth. Смена просматриваемой карточки не меняет работающую сессию. Текущий аккаунт и модель отмечены отдельно.
 
+### Режим администратора
+
+Включите **«Режим администратора»** в **Настройки → ChatGPT Link** или внизу виджета выбора модели, если хотите видеть подробные карточки аккаунтов, остатки квот и доступные ручные сбросы Codex. Для обычного выбора аккаунта и модели включать его не нужно. Это настройка отображения, а не права администратора DSH; пароль не запрашивается. Сам сброс не запускается при включении режима: для расходования выбранного сброса по-прежнему нужны два отдельных подтверждения.
+
 ### Настройки для новых чатов
 
 Чекбокс **«Для новых чатов»** справа от вкладок виджета сохраняет просматриваемый аккаунт, текущую выбранную модель ChatGPT и выбранный уровень рассуждений. Для сохранения другой модели сначала примените её в текущем чате, затем снова откройте виджет и отметьте чекбокс. Если комбинация совпадает с сохранённой, чекбокс уже отмечен. Его снятие отключает автоматическую настройку будущих чатов.
 
-Изначально включена комбинация **первый подключённый аккаунт + GPT‑6.1 Sol + Низкий**. Сохранённый выбор переживает перезапуск и используется только при создании новых обычных чатов. Старые/восстановленные чаты, forks и уже созданные субагенты не переключаются. Субагенты новых чатов по-прежнему наследуют их аккаунт. Это метаданные в отдельном домене `chatgpt_defaults`, без копирования credentials и без изменения глобальной модели DSH.
+Если сохранённой настройки ещё нет, после подключения первого доступного аккаунта плагин выбирает **этот аккаунт + GPT‑6.2 Sol + Низкий**. Сохранённый выбор переживает перезапуск и используется только при создании новых обычных чатов. Старые/восстановленные чаты, forks и уже созданные субагенты не переключаются. Субагенты новых чатов по-прежнему наследуют их аккаунт. Это метаданные в отдельном домене `chatgpt_defaults`, без копирования credentials и без изменения глобальной модели DSH.
 
 Если сохранённый аккаунт удалён или вышел из системы, другой аккаунт автоматически не выбирается: восстановите авторизацию либо явно сохраните новую комбинацию в существующем чате. При включённом недоступном default создание нового чата завершается явной ошибкой, а не запросом от чужого аккаунта.
 
@@ -143,6 +147,12 @@ npm pack --dry-run
 Install `https://github.com/TheSeeker1993/dsh-chatgpt-multi-account` via DSH Market or Plugin Manager, without a branch, tag, or commit suffix. In DSH Market, use **Installed → Update** when a newer version is offered. For development, you can clone the repository and add its absolute local directory through Plugin Manager instead. Disable other ChatGPT Link implementations first. Add and explicitly sign into accounts under Settings → ChatGPT Link. In a session, open the model picker, preview an account, choose reasoning effort and click a model to apply both. The `chatgpt-session` provider is account-isolated; legacy `openai-codex` is not. Quotas are subscription limits, not token counts. Target engines: DSH >=0.2.2-rc.3 <0.2.3 / pi-ai 1.3.0. Installed rc.3 API inspection and synthetic native smoke do not certify live search or visual behavior.
 
 For model-aware search, explicitly select **Settings → Web Search → Auto: ChatGPT / DeepSeek** (`model-aware-search`); loading this plugin never changes settings. Standalone `chatgpt-session-search` is also available. GPT search uses fixed `gpt-6.1-sol` / low reasoning with native OAuth and no chat history; it consumes ChatGPT allowance (exact cost unmeasured), not a free/unlimited service. `chatgpt-session` uses the bound account; legacy `openai-codex` always uses `legacy`. Other routes use native DeepSeek with existing billing/settings, without cross-fallback. Fetch is unchanged. Select native DeepSeek to turn Auto off. Host rc.3 APIs were inspected; no live paid-search or visual verification of this integration was performed.
+
+## 中文简介
+
+这是一个面向 DeepSeek Harness（DSH）的社区插件。它支持连接多个 ChatGPT OAuth 账号，为每个会话单独选择账号、模型和推理强度，并查看各账号的剩余额度。会话不会自动切换到其他账号。连接了可用账号且未更改默认设置时，新建普通会话的初始默认模型为 **GPT‑6.2 Sol**（低推理强度）。
+
+**管理员模式**可在 **设置 → ChatGPT Link** 或模型选择器底部开启，无需输入密码。它会显示扩展的额度信息和可用的 Codex 手动重置选项，不会授予任何 DSH 管理权限。使用一次手动重置额度仍需两次独立确认；插件不会自动使用或购买重置额度。
 
 ## License and attribution
 

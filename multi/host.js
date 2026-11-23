@@ -35,12 +35,8 @@ export async function installMultiAccount(ctx, config) {
     ctx.connection.fetch.register({ path, methods: ['GET', 'POST'], requestBody: 'buffered',
       async fetch(request) {
         try {
-          if (request.method === 'POST') {
-            const origin = request.headers.get('origin')
-            if (origin !== null && origin !== new URL(request.url).origin) {
-              return Response.json({ error: 'FORBIDDEN_ORIGIN' }, { status: 403, headers: HEADERS })
-            }
-          }
+          // DSH checks browser Host/Origin and restricts exact Fetch routes to
+          // the owner before dispatch. The bridge uses a synthetic URL here.
           const url = new URL(request.url)
           const body = request.method === 'POST' ? await request.json() : {}
           const result = await handle(request.method, url.searchParams, body)

@@ -5,7 +5,7 @@ import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { apply } from '../index.js'
-import { checkFetchBridge } from './check-fetch-bridge.mjs'
+import { checkAccountSelectBridge, checkFetchBridge } from './check-fetch-bridge.mjs'
 const require = createRequire(join(process.env.DSH_INSTALL_DIR, 'package.json'))
 async function runtimeImport(name) {
   if (name.startsWith('@earendil-works/pi-ai')) {
@@ -83,7 +83,8 @@ assert.equal(flows.size, 1)
 const refused = await call('/api/chatgpt-accounts', { action: 'select', accountId: id, sessionId: 'synthetic-session' })
 assert.equal(refused.data.error, 'ACCOUNT_SIGNED_OUT')
 records.set(`dsh-gpt-link/account-${id}`, { kind: 'grant', payload: { type: 'oauth', access: 'synthetic', accountId: 'synthetic', expires: 1 } })
-assert.equal((await call('/api/chatgpt-accounts', { action: 'select', accountId: id, sessionId: 'synthetic-session' })).data.sessionAccountId, id)
+await checkAccountSelectBridge(routeSpecs.get('/api/chatgpt-accounts'), 'synthetic-session', id)
+assert.equal((await call('/api/chatgpt-accounts?sessionId=synthetic-session')).data.sessionAccountId, id)
 assert.equal((await call(`/api/chatgpt-quota?accountId=${id}`)).data.message, 'quota-token-stale')
 assert.equal((await call(`/api/chatgpt-resets?accountId=${id}`)).data.error, 'RESET_TOKEN_EXPIRED')
 const defaults = (await call('/api/chatgpt-defaults')).data

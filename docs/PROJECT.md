@@ -1,6 +1,6 @@
 # Передача проекта · 17.11.2026
 
-Рабочая версия: **0.5.0** (готовый пакет для GitHub Releases). Статус публикации подтверждается отдельно после push; номер версии сам по себе не означает публикацию.
+Рабочая версия: **0.5.1**. Статус публикации подтверждается отдельно после push; номер версии сам по себе не означает публикацию.
 
 ## Что это
 Самостоятельный community-плагин DSH: несколько ChatGPT OAuth-аккаунтов, явный выбор аккаунта для каждой сессии, изолированные параллельные запросы, квоты и ручные сбросы Codex. Репозиторий этой копии: https://github.com/TheSeeker1993/dsh-chatgpt-multi-account (`origin`); исходный проект: https://gitflic.ru/project/421-mircli-ru/dsh-chatgpt-multi-account (`upstream`, на основе Clukay-Fun/dsh-gpt-link). Для выпуска новой версии этой копии увеличьте `version` в `package.json` и опубликуйте коммит в ветке `main` GitHub. Синхронизация с GitFlic не автоматическая.
@@ -43,7 +43,7 @@
 - Остаток: clamp(100-usedPercent,0,100). Для заливки/таймера сначала основное weekly окно 10080 минут без `:` в id, затем другое основное/первое. Unknown ≠ 100% и ≠ подтверждённый 0%; stale визуально отмечать.
 - GET `/wham/rate-limit-reset-credits`: отдельные banked ручные сбросы, НЕ автоматические reset timestamps. Данные: available_count, credits[].id/status/reset_type/expires_at. Поддержан только `codex_rate_limits`; неизвестную схему не угадывать.
 - POST `/wham/rate-limit-reset-credits/consume`: `{redeem_request_id,credit_id}`. Заголовок `OAI-Product-Sku: CODEX`; не добавлять покупку сбросов.
-- Локальный `/api/chatgpt-resets`: GET list; POST list/begin/advance/consume/cancel. Begin→warning1; advance→warning2 с новым nonce; consume только после двух отдельных действий. Подтверждения bound к аккаунту/credit/identity, TTL60s; до расхода fresh validation. Сервер не требует и не проверяет отдельный пароль сброса. Неизменённый клиент пока требует непустой ввод, но сервер игнорирует это поле.
+- Локальный `/api/chatgpt-resets`: GET list; POST list/begin/advance/consume/cancel. Begin→warning1; advance→warning2 с новым nonce; consume только после двух отдельных действий. Подтверждения bound к аккаунту/credit/identity, TTL60s; до расхода fresh validation. Ни клиент, ни сервер не требуют отдельного пароля сброса.
 - Nonce сжигается до dispatch. Повторный consume не отправляет второй POST; unknown — без auto retry/replay. Ошибки только безопасными кодами, без raw response/token.
 - CSRF: секретный случайный токен выдаётся authenticated no-store GET, custom `x-chatgpt-reset-csrf` обязателен для POST; браузерный cross-site отклоняется. DSH уже проверяет реальный Host/Origin. `Request.url` внутри Host имеет synthetic origin `http://dsh.internal`: прежнее прямое сравнение породило RESET_FORBIDDEN_ORIGIN. Не возвращать его.
 - Owner-auth обеспечивается DSH route boundary. Не регистрировать инструменты агента для consume. Реальный расход никогда не использовать для тестирования без отдельной просьбы пользователя.

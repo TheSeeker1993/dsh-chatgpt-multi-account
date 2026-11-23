@@ -1149,12 +1149,12 @@ window.__ModuleLoader__.load({
         },
       }
     }
+    // Keep the existing storage key so upgrading preserves the selected view.
     const developerMode = displayPreference('developer-mode')
-    const developerUnlocked = displayPreference('developer-unlocked')
     const SimpleTheme = React.createContext(false)
-    Object.assign(copy.ru, { developerMode: 'Режим разработчика', developerPassword: 'Пароль режима разработчика', developerError: 'Неверный пароль или не удалось сохранить настройку.', developerEnable: 'Включить', developerCancel: 'Отмена', sectionAccount: 'Аккаунт', sectionLimits: 'Лимиты', sectionEffort: 'Уровень рассуждения', sectionModel: 'Модель' })
-    Object.assign(copy.en, { developerMode: 'Developer mode', developerPassword: 'Developer mode password', developerError: 'Incorrect password or could not save the preference.', developerEnable: 'Enable', developerCancel: 'Cancel', sectionAccount: 'Account', sectionLimits: 'Limits', sectionEffort: 'Reasoning effort', sectionModel: 'Model' })
-    Object.assign(copy.zh, { developerMode: '开发者模式', developerPassword: '开发者模式密码', developerError: '密码错误或无法保存设置。', developerEnable: '启用', developerCancel: '取消', sectionAccount: '账号', sectionLimits: '额度', sectionEffort: '推理强度', sectionModel: '模型' })
+    Object.assign(copy.ru, { adminMode: 'Режим администратора', adminModeError: 'Не удалось сохранить режим интерфейса.', sectionAccount: 'Аккаунт', sectionLimits: 'Лимиты', sectionEffort: 'Уровень рассуждения', sectionModel: 'Модель' })
+    Object.assign(copy.en, { adminMode: 'Administrator mode', adminModeError: 'Could not save the interface mode.', sectionAccount: 'Account', sectionLimits: 'Limits', sectionEffort: 'Reasoning effort', sectionModel: 'Model' })
+    Object.assign(copy.zh, { adminMode: '管理员模式', adminModeError: '无法保存界面模式。', sectionAccount: '账号', sectionLimits: '额度', sectionEffort: '推理强度', sectionModel: '模型' })
     const simpleCss = `
 [data-gl-simple], [data-gl-simple] *, [data-gl-simple] *::before, [data-gl-simple] *::after {
   animation: none !important; transition: none !important; box-shadow: none !important;
@@ -1213,36 +1213,14 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
   background-color:var(--dsw-alias-interactive-bg-hover) !important;
 }
 `
-    function DeveloperModeSetting({ t }) {
+    function AdminModeSetting({ t }) {
       const enabled = developerMode.useEnabled()
-      const unlocked = developerUnlocked.useEnabled()
-      const [editing, setEditing] = React.useState(false)
       const [failed, setFailed] = React.useState(false)
-      const input = React.useRef(null)
-      React.useEffect(() => { if (editing) input.current?.focus() }, [editing])
-      const save = value => {
-        try { developerMode.write(value); setEditing(false); setFailed(false) } catch { setFailed(true) }
-      }
       return h('div', { className: 'gl-developer-setting' },
         h('button', { className: 'gl-btn', type: 'button', 'aria-pressed': enabled, onClick: () => {
-          setFailed(false)
-          if (enabled) {
-            try { developerUnlocked.write(true); save(false) } catch { setFailed(true) }
-          } else if (unlocked) save(true)
-          else setEditing(value => !value)
-        } }, text(t, 'developerMode')),
-        editing && !enabled ? h('form', { className: 'gl-form', onSubmit: event => {
-          event.preventDefault()
-          const correct = input.current?.value === 'theseeker'
-          input.current.value = ''
-          if (correct) {
-            try { developerUnlocked.write(true); save(true) } catch { setFailed(true) }
-          }
-          else { setFailed(true); input.current.focus() }
-        } }, h('input', { ref: input, className: 'gl-input', type: 'password', autoComplete: 'off', required: true, 'aria-label': text(t, 'developerPassword'), placeholder: text(t, 'developerPassword') }),
-          h('button', { className: 'gl-btn', type: 'submit' }, text(t, 'developerEnable')),
-          h('button', { className: 'gl-btn', type: 'button', onClick: () => { setEditing(false); setFailed(false) } }, text(t, 'developerCancel'))) : null,
-        failed ? h('p', { role: 'alert' }, text(t, 'developerError')) : null)
+          try { developerMode.write(!enabled); setFailed(false) } catch { setFailed(true) }
+        } }, text(t, 'adminMode')),
+        failed ? h('p', { role: 'alert' }, text(t, 'adminModeError')) : null)
     }
     function GptLinkSection({ t, remote }) {
       const { snapshot, error, pending, refresh, mutate } = useAccounts()
@@ -1263,7 +1241,7 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
         snapshot?.accounts.length === 0 ? h('p', { className: 'gl-note' }, text(t, 'emptyAccounts')) : null,
         snapshot?.accounts.map(account => h(AccountPanel, { key: account.id, t, account, pending, mutate })),
         h(SubagentSetup, { t, remote }),
-        h(DeveloperModeSetting, { t })))
+        h(AdminModeSetting, { t })))
     }
 
     function SessionAccountSelector({ t, sessionId, useSession }) {
@@ -1302,7 +1280,7 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
 .gl-picker-dialog.gl-picker-widget{position:fixed;inset:auto;margin:0;max-width:calc(100vw - 16px);max-height:var(--gl-widget-height,620px);z-index:1000;border-radius:12px;clip-path:inset(0 round 12px);box-shadow:0 8px 28px color-mix(in srgb,var(--dsw-alias-label-primary) 14%,transparent)}
 .gl-picker-dialog.gl-picker-widget:popover-open{display:block}
 .gl-picker-dialog.gl-picker-widget::backdrop{background:transparent;pointer-events:none}
-.gl-picker-widget>.gl-picker-shell{height:var(--gl-tab-height,auto);max-height:calc(var(--gl-widget-height,620px) - 2px)}
+.gl-picker-widget>.gl-picker-shell{max-height:calc(var(--gl-widget-height,620px) - 2px)}
 .gl-picker-widget .gl-picker-head{padding:8px 10px 6px}
 .gl-picker-widget .gl-picker-head strong{font-size:13px}
 .gl-picker-widget .gl-picker-shell>.gl-picker-head{border-radius:11px 11px 0 0}
@@ -1674,7 +1652,6 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
 
     function UnifiedPicker({ t, sessionId, useSession, directory, locked }) {
       const simple = !developerMode.useEnabled()
-      const canSwitchMode = developerUnlocked.useEnabled() || !simple
       const state = React.useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot, directory.store.getSnapshot)
       const { snapshot, refresh, error: accountError } = useAccounts(sessionId)
       const unavailable = useSession(s => s.subagent !== null)
@@ -1692,6 +1669,7 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
       const [now, setNow] = React.useState(Date.now())
       React.useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer) }, [])
       const [error, setError] = React.useState('')
+      const [adminModeFailed, setAdminModeFailed] = React.useState(false)
       const [selecting, setSelecting] = React.useState(false)
       const [resetBusy, setResetBusy] = React.useState(false)
       const [refreshingAll, setRefreshingAll] = React.useState(false)
@@ -1755,8 +1733,19 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
         return () => { controller.abort(); clearInterval(timer) }
       }, [open, selectedId, accounts.map(a => a.id + a.configured).join(','), loadQuota])
       React.useLayoutEffect(() => {
+        const node = dialog.current
+        if (!node || !open || unavailable) return
+        if (node.showPopover) node.showPopover()
+        else if (!node.open) node.show()
+        node.focus({ preventScroll: true })
+        return () => {
+          if (node.hidePopover && node.matches(':popover-open')) node.hidePopover()
+          if (node.open) node.close()
+        }
+      }, [open, unavailable])
+      React.useLayoutEffect(() => {
         const node = dialog.current, anchor = trigger.current
-        if (!node || !anchor || !open) return
+        if (!node || !anchor || !open || unavailable) return
         let frame = 0
         const place = () => {
           const box = anchor.getBoundingClientRect(), edge = 8, gap = 7
@@ -1771,10 +1760,7 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
           node.style.top = Math.max(edge, Math.min(window.innerHeight - height - edge, upwards ? box.top - gap - height : box.bottom + gap)) + 'px'
           node.dataset.side = upwards ? 'above' : 'below'
         }
-        if (node.showPopover) node.showPopover()
-        else if (!node.open) node.show()
         place()
-        node.focus({ preventScroll: true })
         const schedule = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; place() }) }
         const observer = new ResizeObserver(schedule); observer.observe(node); observer.observe(anchor)
         window.addEventListener('resize', schedule)
@@ -1782,11 +1768,8 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
         return () => {
           cancelAnimationFrame(frame); observer.disconnect()
           window.removeEventListener('resize', schedule); document.removeEventListener('scroll', schedule, true)
-          if (node.hidePopover && node.matches(':popover-open')) node.hidePopover()
-          if (node.open) node.close()
-          node.style.removeProperty('--gl-tab-height')
         }
-      }, [open, simple])
+      }, [open, simple, unavailable])
       React.useEffect(() => {
         if (!open) return
         const outside = event => {
@@ -1799,12 +1782,6 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
         return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape) }
       }, [open, resetBusy])
       const switchTab = (next) => {
-        const node = dialog.current
-        const shell = node?.firstElementChild
-        if (next !== tab && shell && !node.style.getPropertyValue('--gl-tab-height')) {
-          const height = shell.getBoundingClientRect().height
-          if (height > 0) node.style.setProperty('--gl-tab-height', height + 'px')
-        }
         setTab(next); setQuery(''); setCommonEffort(null)
       }
       const close = () => { if (!inFlight.current && !resetBusy) { setOpen(false); trigger.current?.focus() } }
@@ -1899,6 +1876,7 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
             busy ? h('p', { className: 'gl-picker-info gl-picker-busy', role: 'status' }, text(t, 'pickerBusy')) : null,
             accountError ? h('p', { className: 'gl-picker-info', role: 'alert' }, accountError) : !snapshot ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'loading')) : !accounts.length ? h('p', { className: 'gl-picker-info' }, text(t, 'pickerEmptyAccounts')) : null,
             error || state.error ? h('p', { className: 'gl-picker-info', role: 'alert' }, error || state.error) : null,
+            adminModeFailed ? h('p', { className: 'gl-picker-info', role: 'alert' }, text(t, 'adminModeError')) : null,
             h('div', { className: 'gl-picker-list' },
               tab === 'gpt' ? h(React.Fragment, null,
                 sectionLabel('sectionAccount'),
@@ -1929,13 +1907,13 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
                   h(MiniCardOrb, { seed: visibleModels.indexOf(model) + 5 }), h('span', { className: 'gl-mini-label' }, model.name), recommended ? ModelStar : null)
               }), reservedModels.map(id => h('span', { key: 'reserved:' + id, className: 'gl-model-cell', style: { visibility: 'hidden' }, 'aria-hidden': true }))),
                !simple && tab === 'gpt' && availableCatalog.rows.filter(row => row.registration === 'unconfirmed').map(row => h('p', { key: row.id, className: 'gl-note' }, row.id + ' — ' + text(t, 'catalogUnconfirmed'))),
-              (tab === 'gpt' || canSwitchMode) ? h('div', { className: 'gl-picker-footer' },
+              h('div', { className: 'gl-picker-footer' },
                  tab === 'gpt' ? h(NewChatDefaults, { open, combo: newChatCombo(state.current, nativeModels, previewAccount, displayedEffort, tab), disabled: !!locked, selecting, t }) : null,
-                 canSwitchMode ? h('label', { className: 'gl-new-chat-defaults gl-picker-admin-switch' }, 'User',
-                   h('input', { type: 'checkbox', role: 'switch', checked: !simple, 'aria-label': text(t, 'developerMode'), disabled: resetBusy || selecting, onChange: event => {
+                 h('label', { className: 'gl-new-chat-defaults gl-picker-admin-switch' },
+                   h('input', { type: 'checkbox', role: 'switch', checked: !simple, disabled: resetBusy || selecting, onChange: event => {
                      if (resetBusy || inFlight.current) return
-                     try { developerUnlocked.write(true); developerMode.write(event.target.checked) } catch { setError(text(t, 'developerError')) }
-                   } }), 'Admin') : null) : null,
+                     try { developerMode.write(event.target.checked); setAdminModeFailed(false) } catch { setAdminModeFailed(true) }
+                   } }), text(t, 'adminMode'))),
               !visibleModels.length ? h('p', { className: 'gl-note', role: 'status' }, text(t, state.status === 'loading' ? 'pickerLoad' : query ? 'pickerNoResults' : 'pickerEmptyModels')) : null,
               null))))
 

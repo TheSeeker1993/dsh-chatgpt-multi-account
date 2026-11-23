@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+- Fix false `FORBIDDEN_ORIGIN` errors when selecting a ChatGPT account in the DSH Web UI. DSH still enforces its browser-origin and owner checks before dispatch.
+- Let the model picker resize to fit the selected tab instead of keeping the previous tab’s height.
+- Rename Developer mode to Administrator mode and remove its local password prompt. This is an interface preference, not a DSH permission; manual resets still require two separate confirmations.
+
 ## 0.5.0
 
 - Publish a prebuilt GitHub Release package with a version-independent filename for installation without Git. No runtime changes from preview.11.
