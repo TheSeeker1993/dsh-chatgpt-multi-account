@@ -414,13 +414,16 @@ window.__ModuleLoader__.load({
         setPending(true); setError(''); ++generation.current
         try {
           const next = await request('api/chatgpt-accounts', body)
-          if (!Array.isArray(next?.accounts)) throw new Error('Invalid accounts response')
+          if (!Array.isArray(next?.accounts) || (body.action === 'select' && next.sessionAccountId !== body.accountId)) throw new Error('Invalid accounts response')
           if (body.action === 'remove') invalidateCatalog(body.accountId)
           if (mounted.current && scopeKey.current === targetScope) { ++generation.current; setSnapshot(next) }
           accountsChanged()
           return true
         } catch (e) {
-          if (mounted.current && scopeKey.current === targetScope) setError(e instanceof Error ? e.message : 'Request failed')
+          if (mounted.current && scopeKey.current === targetScope) {
+            if (body.action === 'select') { ++generation.current; setSnapshot(null); void refresh() }
+            setError(e instanceof Error ? e.message : 'Request failed')
+          }
           return false
         } finally {
           if (scopeKey.current === targetScope) { mutationActive.current = false; if (mounted.current) setPending(false) }
@@ -1312,7 +1315,7 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
       const simple = !developerMode.useEnabled()
       return h(SimpleTheme.Provider, { value: simple }, h('div', { className: 'gl', 'data-gl-simple': simple || undefined },
         h('style', null, css + pickerCss + simpleCss), h('h2', { className: 'gl-heading' }, text(t, 'accounts')),
-        h('p', { className: 'gl-intro' }, text(t, 'setupHint')),
+        h('p', { className: 'gl-intro' }, text(t, snapshot?.accounts.some(account => account.configured) ? 'setupConnected' : 'setupHint')),
         h('form', { className: 'gl-form', onSubmit: async event => {
           event.preventDefault()
           if (label.trim() && await mutate({ action: 'create', label: label.trim() })) setLabel('')
@@ -1612,15 +1615,15 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
 @media(max-width:420px){.gl-picker-head{padding:12px}.gl-picker-list{padding:0 10px 12px}.gl-picker-trigger{max-width:230px}.gl-picker-quota{max-width:95px;overflow:hidden;text-overflow:ellipsis}}
 `
     // Motion behavior adapted from DesignBookmark Fan Cards. No global theme or timers.
-    function FanAccounts({ accounts, previewId, currentId, onPreview, quotaText, compactQuota, quotas, selecting, t, now, resets }) {
+    function FanAccounts({ accounts, previewId, selectedId, currentId, onSelect, compactQuota, quotas, selecting, disabled, t, now, resets }) {
       return h('div', { className: 'gl-account-mini-grid', role: 'group', 'aria-label': text(t, 'gptAccountsBlock') },
         accounts.map((account, index) => h(ResetChoiceCard, {
-          key: account.id, className: 'gl-account-mini-card', blocked: selecting,
+          key: account.id, className: 'gl-account-mini-card', blocked: selecting, disabled: !selecting && (disabled || !account.configured),
           style: { '--gl-account-quota-fill': (account.configured ? accountFill(quotas[account.id]) ?? 0 : 0) + '%' },
           'data-quota-stale': quotas[account.id]?.freshness === 'stale' ? 'true' : undefined,
-          'aria-pressed': previewId === account.id, 'data-current': currentId === account.id ? 'true' : undefined,
+          'aria-pressed': selectedId === account.id, 'data-preview': previewId === account.id && selectedId !== account.id ? 'true' : undefined, 'data-current': currentId === account.id ? 'true' : undefined,
           'aria-label': account.label + ' · ' + (account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')),
-          onClick: () => onPreview(account.id),
+          onClick: () => onSelect(account),
         }, h(MiniCardOrb, { seed: index + 11, quota: true }),
           h('strong', { className: 'gl-account-mini-name' }, account.label.split('@')[0]),
           h('span', null, account.configured ? compactQuota(quotas[account.id]) : text(t, 'unconfigured')),
@@ -1697,6 +1700,11 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
       return models.filter(model => !availabilityExtensions.has(model.id) || available.has(model.id) || model.id === currentModel)
     }
     const toCatalogModel = row => ({ id: row.id, name: row.id, reasoning: { efforts: (row.reasoningLevels ?? []).map(id => ({ id })), defaultEffort: row.defaultReasoning } })
+    function accountSupportsPickerModel(id, catalog) {
+      if (availabilityExtensions.has(id)) return catalog.ids.has(id)
+      if (SUBAGENT_MODELS.includes(id)) return true
+      return catalog.rows.some(row => row.id === id && row.registration === 'registered')
+    }
     const catalogCache = new Map()
     const catalogRequests = new Map()
     const catalogEvents = new EventTarget()
@@ -1708,10 +1716,12 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
       catalogEvents.dispatchEvent(new Event('invalidated'))
     }
     function refreshCatalog(accountId) {
-      if (catalogRequests.has(accountId) || catalogCache.has(accountId)) return
+      if (catalogCache.has(accountId)) return
+      const pending = catalogRequests.get(accountId)
+      if (pending) return pending.done
       const controller = new AbortController()
       catalogRequests.set(accountId, controller)
-      request('api/chatgpt-catalog-report?accountId=' + encodeURIComponent(accountId), undefined, controller.signal).then(report => {
+      return controller.done = request('api/chatgpt-catalog-report?accountId=' + encodeURIComponent(accountId), undefined, controller.signal).then(report => {
         if (controller.signal.aborted || report?.error || !Number.isFinite(report?.checkedAt) || !Array.isArray(report?.models) ||
           !report.models.every(row => row && typeof row.id === 'string' && (row.visibility === null || typeof row.visibility === 'string'))) return
         const rows = report.models.filter(row => row.visibility === 'list')
@@ -1738,13 +1748,11 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
     function UnifiedPicker({ t, sessionId, useSession, directory, locked }) {
       const simple = !developerMode.useEnabled()
       const state = React.useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot, directory.store.getSnapshot)
-      const { snapshot, refresh, error: accountError } = useAccounts(sessionId)
+      const { snapshot, refresh, mutate, error: accountError } = useAccounts(sessionId)
       const unavailable = useSession(s => s.subagent !== null)
       const busy = useSession(s => s.running || s.awaitingFirstTurn || s.pendingSubmissions.length > 0 || s.removed || s.subagent !== null) || locked
       // Generating blocks model changes, not an explicitly confirmed manual reset.
       const resetUnavailable = useSession(s => s.removed || s.subagent !== null) || locked
-      const orbLink = React.useRef(null)
-      if (!orbLink.current) orbLink.current = createOrbLink()
       const [open, setOpen] = React.useState(false)
       const [query, setQuery] = React.useState('')
       const [quotas, setQuotas] = React.useState({})
@@ -1762,7 +1770,6 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
       const [tab, setTab] = React.useState('gpt')
       const [previewId, setPreviewId] = React.useState(null)
       const [otherProvider, setOtherProvider] = React.useState(null)
-      const [commonEffort, setCommonEffort] = React.useState(null)
       const dialog = React.useRef(null), trigger = React.useRef(null), inFlight = React.useRef(false)
       const selectedId = snapshot?.sessionAccountId
       const accounts = snapshot?.accounts ?? []
@@ -1772,7 +1779,6 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
       const availableModelIds = availableCatalog.ids
       const group = state.groups.find(g => g.id === state.current?.provider)
       const currentModel = group?.models.find(m => m.id === state.current?.model) ?? (state.current?.provider === 'chatgpt-session' && previewAccount?.id === selectedId ? availableCatalog.rows.filter(row => row.registration === 'registered').map(toCatalogModel).find(row => row.id === state.current?.model) : undefined)
-      const quotaText = card => !card || !card.windows?.length ? text(t, 'pickerUnknown') : card.windows.map(w => windowLabel(t, w) + ': ' + (Number.isFinite(w.usedPercent) ? text(t, 'remaining', { n: String(Math.round(Math.max(0, Math.min(100, 100 - w.usedPercent)))) }) : text(t, 'pickerUnknown'))).join(' · ') + (card.freshness === 'stale' ? ' ≈' : '')
       const loadQuota = React.useCallback(async (ids, force = false, signal) => {
         await Promise.all(ids.map(async id => {
           const previous = quotaRequests.current.get(id)
@@ -1867,23 +1873,51 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
         return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape) }
       }, [open, resetBusy])
       const switchTab = (next) => {
-        setTab(next); setQuery(''); setCommonEffort(null)
+        if (inFlight.current || resetBusy) return
+        setTab(next); setQuery('')
       }
       const close = () => { if (!inFlight.current && !resetBusy) { setOpen(false); trigger.current?.focus() } }
+      const bindAccount = async account => {
+        // Publish the POST snapshot immediately, even if a follow-up read fails.
+        if (!await mutate({ action: 'select', sessionId, accountId: account.id })) throw new Error(text(t, 'pickerBindingUnknown'))
+      }
+      const pickAccount = async account => {
+        if (locked || resetBusy || inFlight.current || !snapshot || !account.configured) return
+        setError(''); setQuery(''); setPreviewId(account.id)
+        // During generation an account card can still show quotas and reset options, but never rebind.
+        if (busy || account.id === selectedId) return
+        inFlight.current = true; setSelecting(true)
+        try {
+          const current = directory.store.getSnapshot().current
+          if (current?.provider === 'chatgpt-session') {
+            if (!accountSupportsPickerModel(current.model, catalogCache.get(account.id) ?? emptyCatalog)) await refreshCatalog(account.id)
+            const latest = directory.store.getSnapshot().current
+            if (latest?.provider !== current.provider || latest.model !== current.model || !accountSupportsPickerModel(current.model, catalogCache.get(account.id) ?? emptyCatalog)) {
+              setError(text(t, 'pickerChooseCompatible')); return
+            }
+          }
+          await bindAccount(account)
+          setPreviewId(null)
+        } catch (e) { setError(e.message ?? text(t, 'pickerBindingUnknown')) }
+        finally { inFlight.current = false; setSelecting(false) }
+      }
       const choose = async (account, provider, model) => {
-        if (busy || resetBusy || inFlight.current) return
+        if (busy || resetBusy || inFlight.current || (provider === 'chatgpt-session' && (!snapshot || !account?.configured))) return
         inFlight.current = true; setSelecting(true); setError('')
         let changedAccount = false
         try {
           if (account && account.id !== selectedId) {
-            await request('api/chatgpt-accounts', { action: 'select', sessionId, accountId: account.id })
-            changedAccount = true; accountsChanged(); await refresh()
+            if (!accountSupportsPickerModel(model.id, catalogCache.get(account.id) ?? emptyCatalog)) {
+              setError(text(t, 'pickerChooseCompatible')); return
+            }
+            await bindAccount(account)
+            changedAccount = true
+            setPreviewId(null)
           }
-          const preferredEffort = displayedEffort
+          const preferredEffort = state.current?.reasoningEffort
           const effort = model.reasoning?.efforts?.some(level => level.id === preferredEffort) ? preferredEffort : model.reasoning?.defaultEffort
           const result = await directory.select({ provider, model: model.id, ...(effort ? { reasoningEffort: effort } : {}) })
           if (!result.ok) throw new Error(result.error?.message ?? 'Selection failed')
-          setCommonEffort(null)
         } catch (e) {
           setError((changedAccount ? text(t, 'pickerPartial') + ' ' : '') + (e.message ?? 'Selection failed'))
         } finally { inFlight.current = false; setSelecting(false) }
@@ -1895,20 +1929,16 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
       const previewIsCurrent = tab === 'gpt' ? state.current?.provider === 'chatgpt-session' && previewAccount?.id === selectedId : state.current?.provider === provider
       const dynamicModels = availableCatalog.rows.filter(row => row.registration === 'registered').map(toCatalogModel)
       const models = tab === 'gpt' ? [...filterAvailableModels(nativeModels, availableModelIds, previewIsCurrent ? state.current?.model : null), ...dynamicModels.filter(row => !nativeModels.some(model => model.id === row.id))] : previewGroup?.models ?? []
-      const levels = [...new Map(models.flatMap(m => m.reasoning?.efforts ?? []).map(level => [level.id, level])).values()]
-      const displayedEffort = commonEffort ?? (previewIsCurrent ? state.current?.reasoningEffort : undefined) ?? models[0]?.reasoning?.defaultEffort
+      const levels = previewIsCurrent && (tab !== 'gpt' || (selectedId && selectedAccount?.configured)) ? currentModel?.reasoning?.efforts ?? [] : []
+      const displayedEffort = previewIsCurrent ? state.current?.reasoningEffort ?? currentModel?.reasoning?.defaultEffort : undefined
       const changeEffort = async effort => {
         if (busy || resetBusy || inFlight.current) return
-        // Another account/provider is only a preview until a model is chosen.
-        if (!previewIsCurrent || !currentModel?.reasoning?.efforts?.some(level => level.id === effort)) {
-          setCommonEffort(effort)
-          return
-        }
+        // Reasoning changes only the active compatible model, never the provider or account.
+        if (!levels.some(level => level.id === effort) || displayedEffort === effort) return
         inFlight.current = true; setSelecting(true); setError('')
         try {
           const result = await directory.select({ provider: state.current.provider, model: currentModel.id, reasoningEffort: effort })
           if (!result.ok) throw new Error(result.error?.message ?? 'Selection failed')
-          setCommonEffort(null)
         } catch (e) {
           setError(e.message ?? 'Selection failed')
         } finally { inFlight.current = false; setSelecting(false) }
@@ -1940,7 +1970,7 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
       const limitRows = previewQuota?.windows ?? []
       return h(SimpleTheme.Provider, { value: simple },
         h('style', null, css + pickerCss + simpleCss),
-        h('button', { ref: trigger, 'data-gl-simple': simple || undefined, type: 'button', className: 'gl-picker-trigger', 'aria-label': triggerLabel, onClick: () => { if (resetBusy || inFlight.current) return; if (open) { close(); return } setQuery(''); setTab(state.current?.provider === 'chatgpt-session' || !state.current?.provider ? 'gpt' : 'other'); setPreviewId(selectedId ?? null); setOtherProvider(state.current?.provider ?? null); setCommonEffort(null); setOpen(true) }, disabled: !!locked || resetBusy, 'aria-haspopup': 'dialog', 'aria-expanded': open },
+        h('button', { ref: trigger, 'data-gl-simple': simple || undefined, type: 'button', className: 'gl-picker-trigger', 'aria-label': triggerLabel, onClick: () => { if (resetBusy || inFlight.current) return; if (open) { close(); return } setQuery(''); setTab(state.current?.provider === 'chatgpt-session' || !state.current?.provider ? 'gpt' : 'other'); setPreviewId(selectedId ?? null); setOtherProvider(state.current?.provider ?? null); setOpen(true) }, disabled: !!locked || resetBusy, 'aria-haspopup': 'dialog', 'aria-expanded': open },
           h('span', { className: 'gl-trigger-model' }, modelLabel), accountLabel ? h('span', { className: 'gl-trigger-account' }, '· ' + accountLabel) : null, state.current?.provider === 'chatgpt-session' && selectedId ? h('small', { className: 'gl-picker-quota', 'aria-hidden': true }, triggerQuotaText(quotas[selectedId], true)) : null, ' ▾'),
         h('dialog', { ref: dialog, 'data-gl-simple': simple || undefined, popover: 'manual', tabIndex: -1, className: 'gl-picker-dialog gl-picker-widget', 'aria-modal': false, 'aria-label': text(t, 'pickerTitle'), onCancel: e => { e.preventDefault(); close() }, onClick: e => { if (e.target === dialog.current) close() } },
           h('div', { className: 'gl-picker-shell' },
@@ -1962,11 +1992,14 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
             accountError ? h('p', { className: 'gl-picker-info', role: 'alert' }, accountError) : !snapshot ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, 'loading')) : !accounts.length ? h('p', { className: 'gl-picker-info' }, text(t, 'pickerEmptyAccounts')) : null,
             error || state.error ? h('p', { className: 'gl-picker-info', role: 'alert' }, error || state.error) : null,
             adminModeFailed ? h('p', { className: 'gl-picker-info', role: 'alert' }, text(t, 'adminModeError')) : null,
+             tab === 'gpt' && !busy && !selecting && !error && !accountError && accounts.some(account => account.configured) && (!selectedId || state.current?.provider !== 'chatgpt-session')
+               ? h('p', { className: 'gl-picker-info', role: 'status' }, text(t, selectedId ? 'pickerBindingSaved' : 'pickerBindFirst')) : null,
             h('div', { className: 'gl-picker-list' },
               tab === 'gpt' ? h(React.Fragment, null,
                 sectionLabel('sectionAccount'),
-                 simple && accounts.length <= 1 ? h('p', { className: 'gl-simple-account' }, previewAccount?.label ?? text(t, 'pickerEmptyAccounts')) : h(FanAccounts, { accounts, previewId: previewAccount?.id, currentId: state.current?.provider === 'chatgpt-session' ? selectedId : null,
-                  onPreview: id => { setPreviewId(id); setQuery('') }, quotaText, compactQuota, quotas, selecting: selecting || resetBusy, t, orbLink, now, resets: showResets ? resets : null }),
+                 accounts.length ? h(FanAccounts, { accounts, previewId, selectedId, currentId: state.current?.provider === 'chatgpt-session' ? selectedId : null,
+                  onSelect: account => void pickAccount(account), compactQuota, quotas, selecting, disabled: !!locked || resetBusy, t, now, resets: showResets ? resets : null }) : null,
+                 previewId && previewId !== selectedId && previewAccount ? h('p', { className: 'gl-note', role: 'status' }, `${text(t, 'pickerPreview')}: ${previewAccount.label.split('@')[0]} — ${text(t, 'pickerNotApplied')}`) : null,
                  accounts.length <= 1 ? sectionLabel('sectionLimits') : null,
                  simple && !resetBusy ? accounts.length > 1 ? null : h('ul', { className: 'gl-simple-limits' }, limitRows.length ? limitRows.map(w => {
                    const remaining = Number.isFinite(w.usedPercent) ? Math.max(0, Math.min(100, 100 - w.usedPercent)) : null
@@ -1975,8 +2008,8 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
                      remaining === null ? null : h('div', { className: 'gl-simple-limit-track', 'aria-hidden': true, 'data-stale': previewQuota.freshness === 'stale' || undefined },
                        h('span', { className: 'gl-simple-limit-fill', style: { width: remaining + '%' } })))
                  }) : h('li', null, text(t, 'pickerUnknown'))) : previewAccount?.configured ? h(ResetMenu, { key: previewAccount.id, t, accountId: previewAccount.id, accountLabel: previewAccount.label, autoOpen: true, selecting, disabled: resetUnavailable || selecting, onBusyChange: setResetBusy, onConsumed: id => { void loadQuota([id], true); void loadResets([id], true) } }) : null)
-                : h('select', { className: 'gl-input gl-compact-provider', value: previewGroup?.id ?? '', 'aria-label': text(t, 'otherProvidersBlock'), onChange: e => { setOtherProvider(e.target.value); setCommonEffort(null); setQuery('') } }, otherGroups.map(g => h('option', { value: g.id, key: g.id }, g.name))),
-              sectionLabel('sectionEffort'),
+                : h('select', { className: 'gl-input gl-compact-provider', value: previewGroup?.id ?? '', 'aria-label': text(t, 'otherProvidersBlock'), onChange: e => { setOtherProvider(e.target.value); setQuery('') } }, otherGroups.map(g => h('option', { value: g.id, key: g.id }, g.name))),
+              levels.length ? sectionLabel('sectionEffort') : null,
                levels.length ? h('div', { className: 'gl-efforts', role: 'group', 'aria-label': text(t, 'pickerReasoning') },
                 levels.map((level, index) => h(ResetChoiceCard, { className: 'gl-effort-button', type: 'button', key: level.id, blocked: selecting, disabled: !selecting && (busy || resetBusy), 'aria-pressed': displayedEffort === level.id, onClick: () => void changeEffort(level.id) }, h(MiniCardOrb, { seed: index + 1 }), h('span', { className: 'gl-mini-label' }, level.id)))) : null,
               sectionLabel('sectionModel', tab === 'gpt' && visibleModels.some(model => model.id === 'gpt-6.2-sol')
@@ -1984,16 +2017,15 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
                h('div', { className: 'gl-model-grid' }, visibleModels.map(model => {
                 const recommended = simple && tab === 'gpt' && model.id === 'gpt-6.2-sol'
                  const active = previewIsCurrent && state.current?.model === model.id
-                const unsupportedEffort = !!model.reasoning?.efforts?.length && !!displayedEffort && !model.reasoning.efforts.some(level => level.id === displayedEffort)
                 return h(ResetChoiceCard, { type: 'button', className: 'gl-model-cell', key: model.id, 'aria-pressed': active,
                    'aria-label': recommended ? model.name + ' — ' + text(t, 'recommendedModel') : undefined,
-                  blocked: selecting, disabled: !selecting && (busy || resetBusy || unsupportedEffort || (tab === 'gpt' && !previewAccount?.configured)),
+                  blocked: selecting, disabled: !selecting && (busy || resetBusy || (tab === 'gpt' && (!previewAccount?.configured || (!previewId && !selectedId)))),
                   onClick: () => void choose(tab === 'gpt' ? previewAccount : null, provider, model) },
                   h(MiniCardOrb, { seed: visibleModels.indexOf(model) + 5 }), h('span', { className: 'gl-mini-label' }, model.name), recommended ? ModelStar : null)
               }), reservedModels.map(id => h('span', { key: 'reserved:' + id, className: 'gl-model-cell', style: { visibility: 'hidden' }, 'aria-hidden': true }))),
                !simple && tab === 'gpt' && availableCatalog.rows.filter(row => row.registration === 'unconfirmed').map(row => h('p', { key: row.id, className: 'gl-note' }, row.id + ' — ' + text(t, 'catalogUnconfirmed'))),
               h('div', { className: 'gl-picker-footer' },
-                 tab === 'gpt' ? h(NewChatDefaults, { open, combo: newChatCombo(state.current, nativeModels, previewAccount, displayedEffort, tab), disabled: !!locked, selecting, t }) : null,
+                 tab === 'gpt' ? h(NewChatDefaults, { open, combo: newChatCombo(state.current, nativeModels, previewIsCurrent ? selectedAccount : null, displayedEffort, tab), disabled: !!locked, selecting, t }) : null,
                  h('label', { className: 'gl-new-chat-defaults gl-picker-admin-switch' },
                    h('input', { type: 'checkbox', role: 'switch', checked: !simple, disabled: resetBusy || selecting, onChange: event => {
                      if (resetBusy || inFlight.current) return
@@ -3004,6 +3036,21 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
         "recommendedModel": "modelo recomendado"
       }
     })
+
+    // Selection feedback is shared by all DSH languages.
+    for (const [lang, values] of Object.entries({
+      ru: ['Расширенный режим', 'Добавьте аккаунт ChatGPT и войдите в него.', 'Аккаунт подключён. Новые чаты используют настройки по умолчанию, если они включены. В открытом чате при необходимости выберите аккаунт и модель.', 'Выберите аккаунт для этого чата.', 'Аккаунт для ChatGPT сохранён. Текущая модель не изменилась.', 'Текущая модель не подтверждена для этого аккаунта. Привязка не изменена. Выберите доступную модель.', 'Не удалось подтвердить привязку аккаунта. Проверьте текущий выбор.'],
+      en: ['Advanced mode', 'Add a ChatGPT account and sign in.', 'Account connected. Newly created chats use defaults if enabled. In an open chat, choose an account and model if needed.', 'Choose an account for this chat.', 'ChatGPT account saved. The current model did not change.', 'The current model is not confirmed for this account. The binding did not change. Choose an available model.', 'Could not confirm the account binding. Check the current selection.'],
+      zh: ['高级模式', '添加 ChatGPT 账号并登录。', '账号已连接。如果已启用默认设置，新建会话将使用默认设置。已打开的会话可按需选择账号和模型。', '请为此会话选择一个账号。', '已保存 ChatGPT 账号，当前模型未更改。', '此账号尚未确认支持当前模型，账号绑定未更改。请选择可用的模型。', '无法确认账号绑定。请检查当前选择。'],
+      ja: ['詳細モード', 'ChatGPT アカウントを追加してログインしてください。', 'アカウントを接続しました。既定値が有効なら新規チャットに適用されます。開いているチャットでは必要に応じてアカウントとモデルを選択してください。', 'このチャットのアカウントを選択してください。', 'ChatGPT アカウントを保存しました。現在のモデルは変更していません。', 'このアカウントでは現在のモデルの利用可否を確認できません。アカウントの紐付けは変更していません。利用できるモデルを選択してください。', 'アカウントの紐付けを確認できません。現在の選択を確認してください。'],
+      es: ['Modo avanzado', 'Añade una cuenta de ChatGPT e inicia sesión.', 'Cuenta conectada. Los chats nuevos usan los valores predeterminados si están habilitados. En un chat abierto, elige una cuenta y un modelo si es necesario.', 'Elige una cuenta para este chat.', 'Cuenta de ChatGPT guardada. El modelo actual no cambió.', 'El modelo actual no está confirmado para esta cuenta. La vinculación no cambió. Elige un modelo disponible.', 'No se pudo confirmar la vinculación. Revisa la selección actual.'],
+      fr: ['Mode avancé', 'Ajoutez un compte ChatGPT et connectez-vous.', 'Compte connecté. Les nouvelles discussions utilisent les réglages par défaut s’ils sont activés. Dans une discussion déjà ouverte, choisissez un compte et un modèle au besoin.', 'Choisissez un compte pour cette discussion.', 'Compte ChatGPT enregistré. Le modèle actuel n’a pas changé.', 'Le modèle actuel n’est pas confirmé pour ce compte. Le compte associé n’a pas changé. Choisissez un modèle disponible.', 'Impossible de confirmer le compte associé. Vérifiez la sélection actuelle.'],
+      de: ['Erweiterter Modus', 'Fügen Sie ein ChatGPT-Konto hinzu und melden Sie sich an.', 'Konto verbunden. Neue Chats nutzen die Standardeinstellungen, sofern sie aktiviert sind. Wählen Sie in einem offenen Chat bei Bedarf Konto und Modell.', 'Wählen Sie ein Konto für diesen Chat.', 'ChatGPT-Konto gespeichert. Das aktuelle Modell wurde nicht geändert.', 'Das aktuelle Modell ist für dieses Konto nicht bestätigt. Die Kontoverknüpfung wurde nicht geändert. Wählen Sie ein verfügbares Modell.', 'Die Kontoverknüpfung konnte nicht bestätigt werden. Prüfen Sie die aktuelle Auswahl.'],
+      pt: ['Modo avançado', 'Adicione uma conta do ChatGPT e entre nela.', 'Conta conectada. Novos chats usam os padrões se estiverem ativados. Em um chat aberto, escolha conta e modelo se necessário.', 'Escolha uma conta para este chat.', 'Conta do ChatGPT salva. O modelo atual não mudou.', 'O modelo atual não foi confirmado para esta conta. O vínculo não mudou. Escolha um modelo disponível.', 'Não foi possível confirmar o vínculo da conta. Confira a seleção atual.'],
+    })) {
+      const [adminMode, setupHint, setupConnected, pickerBindFirst, pickerBindingSaved, pickerChooseCompatible, pickerBindingUnknown] = values
+      Object.assign(copy[lang], { adminMode, setupHint, setupConnected, pickerBindFirst, pickerBindingSaved, pickerChooseCompatible, pickerBindingUnknown })
+    }
 
     return {
       inject: ['slots', 'locale', 'modelDirectories', 'remote', 'remote.settings'],

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.4
+
+- Apply account changes immediately without changing the model. An unconfirmed GPT model or a busy chat keeps the requested account in preview without rebinding.
+- Apply reasoning changes immediately to the active compatible model. Model selection remains explicit.
+- Clarify which chats use defaults after sign-in and rename Administrator mode to Advanced mode in all eight languages.
+- Add a screenshot manifest for the community Plugin Market.
+
 ## 0.5.3
 
 - Add Japanese, Spanish, French, German and Brazilian Portuguese translations for the interface, plugin card and web search provider descriptions. The plugin follows the selected DSH language.
