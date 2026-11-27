@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.5
+
+- Recover an expired account token when reading quota, without sending a model request. Distinguish temporary failures from a rejected authorization.
+- Use the same picker design in both modes. Activate advanced controls in ChatGPT Link settings before toggling them in the picker.
+- Make the state of the picker switches visible and show newly added accounts first in settings, without changing account selection or new-chat defaults.
+
 ## 0.5.4
 
 - Apply account changes immediately without changing the model. An unconfirmed GPT model or a busy chat keeps the requested account in preview without rebinding.

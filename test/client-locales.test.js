@@ -37,6 +37,19 @@ test('DSH receives eight client locales, including complete translations and mat
   }
 })
 
+test('activation and quota copy distinguish temporary failures from reauthentication without claiming a server rejection', () => {
+  const messages = registeredLocales()
+  assert.equal(messages.ru.advancedActivation, 'Активировать расширенный режим')
+  assert.match(messages.ru['quota-refresh-failed'], /^Временно не удалось обновить авторизацию/)
+  assert.equal(messages.ru['quota-reauth-required'], 'Для обновления авторизации войдите в этот аккаунт снова.')
+  for (const locale of ['en', 'ru', 'zh', ...added]) {
+    assert.ok(messages[locale].advancedActivation)
+    assert.ok(messages[locale]['quota-refresh-failed'])
+    assert.ok(messages[locale]['quota-reauth-required'])
+    assert.doesNotMatch(messages[locale]['quota-reauth-required'], /OpenAI/)
+  }
+})
+
 test('new languages include packaged descriptions and web search provider descriptions', () => {
   const auto = createAutomaticSearchProvider({}, null, null).provider
   const chatgpt = createChatGPTSearchProvider({}, {}, {}).provider

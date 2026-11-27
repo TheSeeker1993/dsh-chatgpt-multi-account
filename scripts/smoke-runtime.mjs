@@ -6,6 +6,8 @@ import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { apply } from '../index.js'
 import { checkAccountSelectBridge, checkFetchBridge } from './check-fetch-bridge.mjs'
+// Hard fence: even a regression in auth/quota wiring cannot reach real endpoints.
+globalThis.fetch = async () => { throw new Error('Synthetic runtime smoke forbids all network calls') }
 const require = createRequire(join(process.env.DSH_INSTALL_DIR, 'package.json'))
 async function runtimeImport(name) {
   if (name.startsWith('@earendil-works/pi-ai')) {
@@ -85,7 +87,7 @@ assert.equal(refused.data.error, 'ACCOUNT_SIGNED_OUT')
 records.set(`dsh-gpt-link/account-${id}`, { kind: 'grant', payload: { type: 'oauth', access: 'synthetic', accountId: 'synthetic', expires: 1 } })
 await checkAccountSelectBridge(routeSpecs.get('/api/chatgpt-accounts'), 'synthetic-session', id)
 assert.equal((await call('/api/chatgpt-accounts?sessionId=synthetic-session')).data.sessionAccountId, id)
-assert.equal((await call(`/api/chatgpt-quota?accountId=${id}`)).data.message, 'quota-token-stale')
+assert.equal((await call(`/api/chatgpt-quota?accountId=${id}`)).data.message, 'quota-reauth-required')
 assert.equal((await call(`/api/chatgpt-resets?accountId=${id}`)).data.error, 'RESET_TOKEN_EXPIRED')
 const defaults = (await call('/api/chatgpt-defaults')).data
 assert.equal(defaults.enabled, true)

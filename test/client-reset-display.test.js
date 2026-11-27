@@ -4,7 +4,7 @@ import test from 'node:test'
 import vm from 'node:vm'
 
 const source = readFileSync(new URL('../client/index.js', import.meta.url), 'utf8')
-const preference = source.slice(source.indexOf('    function displayPreference('), source.indexOf('    const SimpleTheme ='))
+const preference = source.slice(source.indexOf('    function displayPreference('), source.indexOf('    Object.assign(copy.ru, { adminMode:'))
 
 test('developer mode is off initially, persists across mounts and notifies subscribers', () => {
   const items = new Map()

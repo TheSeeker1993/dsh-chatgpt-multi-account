@@ -1,5 +1,5 @@
 import { CodexLogin } from '../lib/auth/flow.js'
-import { QuotaReader } from '../lib/service.js'
+import { createAccountQuotaReader } from './quota.js'
 
 /** Each login owns its native pi-ai collection and credential address. */
 export async function createAccountServices(ctx, accounts, cacheTtlMs) {
@@ -44,7 +44,7 @@ export async function createAccountServices(ctx, accounts, cacheTtlMs) {
       begin: request => ctx.authorization.begin({ ...request, key }),
     }
     const login = new CodexLogin({ authorization, credentials: recordStore, logger: ctx.logger })
-    const quota = new QuotaReader({ credentials: recordStore, cacheTtlMs })
+    const quota = createAccountQuotaReader({ accounts, id, createModels, openaiCodexProvider, cacheTtlMs })
     const value = { key, login, quota, dispose() { login.dispose(); quota.dispose(); disposeFlow(); accounts.authorizing.delete(id) } }
     entries.set(id, value)
     return value

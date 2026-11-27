@@ -77,7 +77,7 @@ export class Accounts {
   async snapshot(sessionId) {
     if (sessionId !== undefined && !validSession(sessionId)) fail('INVALID_SESSION')
     const accounts = await Promise.all([...this.accounts.entries()].filter(([id]) => !this.removing.has(id)).map(async ([id, meta]) => ({
-      id, label: meta.label, configured: (await this.credentials.describeRecord(accountKey(id))).configured,
+      id, label: meta.label, createdAt: meta.createdAt, configured: (await this.credentials.describeRecord(accountKey(id))).configured,
     })))
     return { accounts, sessionAccountId: sessionId === undefined ? null : this.sessions.get(sessionId)?.accountId ?? null }
   }

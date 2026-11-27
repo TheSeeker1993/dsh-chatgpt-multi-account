@@ -4,34 +4,43 @@ import test from 'node:test'
 import vm from 'node:vm'
 
 const source = readFileSync(new URL('../client/index.js', import.meta.url), 'utf8')
+const preferenceSource = source.slice(source.indexOf('    function displayPreference('), source.indexOf('    Object.assign(copy.ru, { adminMode:'))
 
-test('simple theme persists separately and skips animated card setup and decoration', () => {
-  const storage = new Map()
+function preferences(items = new Map()) {
   const window = new EventTarget()
-  let definition, updates = 0, unsubscribe
-  window.__ModuleLoader__ = { load(value) { definition = value } }
-  window.localStorage = { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, value) }
-  const context = vm.createContext({ window, Event, EventTarget })
-  vm.runInContext(source.replace('    function UnifiedPicker(', '    globalThis.ui = { developerMode, MiniCardOrb, ResetChoiceCard };\n    function UnifiedPicker('), context)
-  definition.factory(() => ({
-    createContext: value => ({ value }),
-    createElement: (type, props) => ({ type, props }),
-    useContext: () => !context.ui.developerMode.useEnabled(),
-    useRef: current => ({ current }),
-    useEffect: effect => effect(), // No matchMedia or animation APIs supplied: the lightweight branch must not touch them.
-    useSyncExternalStore(subscribe, read) { unsubscribe ??= subscribe(() => updates++); return read() },
-  }))
-  const { developerMode, MiniCardOrb, ResetChoiceCard } = context.ui
-  assert.equal(developerMode.useEnabled(), false)
-  developerMode.write(false)
-  assert.equal(updates, 1)
-  assert.equal(developerMode.useEnabled(), false)
+  window.localStorage = { getItem: key => items.get(key), setItem: (key, value) => items.set(key, value) }
+  const React = { useSyncExternalStore(_subscribe, read) { return read() } }
+  return vm.runInNewContext(preferenceSource + '\n;({ developerMode, advancedActivation })', { window, Event, EventTarget, React })
+}
 
-  assert.equal(MiniCardOrb({}), null)
-  assert.match(MiniCardOrb({ quota: true }).props.className, /gl-static-quota/)
-  assert.equal(ResetChoiceCard({}).type, 'button')
-  unsubscribe()
-  developerMode.write(true)
-  assert.equal(updates, 1)
-  assert.doesNotMatch(MiniCardOrb({ quota: true }).props.className, /gl-static-quota/)
+test('advanced access is separate, off by default, and cannot be granted by the legacy mode key', () => {
+  const items = new Map([['dsh-chatgpt-multi-account:developer-mode', '1']])
+  const state = preferences(items)
+  assert.equal(state.developerMode.useEnabled(), true)
+  assert.equal(state.advancedActivation.useEnabled(), false)
+  state.advancedActivation.write(true)
+  assert.equal(state.advancedActivation.useEnabled(), true)
+  state.developerMode.write(false)
+  assert.equal(state.advancedActivation.useEnabled(), true, 'picker off does not revoke access')
+  const remount = preferences(items)
+  assert.equal(remount.advancedActivation.useEnabled(), true)
+  assert.equal(remount.developerMode.useEnabled(), false)
+})
+
+test('basic functionality shares the existing advanced skin and gates only advanced controls', () => {
+  assert.doesNotMatch(source, /SimpleTheme|data-gl-simple|gl-static-quota/)
+  assert.match(source, /const simple = !\(activated && modeEnabled\)/)
+  assert.match(source, /const showResets = !simple/)
+  assert.match(source, /activated \? h\('label', \{ className: 'gl-new-chat-defaults gl-picker-admin-switch'/)
+  assert.match(source, /Math\.min\(440, window\.innerWidth - edge \* 2\)/)
+})
+
+test('visible native-switch companions support checked, focus-visible, reduced-motion and high-contrast states', () => {
+  assert.match(source, /input:checked \+ \.gl-switch-track/)
+  assert.match(source, /input:focus-visible \+ \.gl-switch-track/)
+  assert.match(source, /@media\(forced-colors:active\)/)
+  assert.match(source, /@media\(prefers-reduced-motion:reduce\)\{\.gl-switch-track::before/)
+  assert.match(source, /width:32px;height:20px/)
+  assert.match(source, /min-height:30px/)
+  assert.equal((source.match(/className: 'gl-switch-track', 'aria-hidden': true/g) ?? []).length, 3)
 })

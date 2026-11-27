@@ -36,6 +36,13 @@ test('accounts isolate concurrent refreshes and session bindings', async () => {
   assert.equal((await f.accounts.credentialStore(b).read('openai-codex')).access, 'new-B')
   assert.doesNotMatch(JSON.stringify(await f.accounts.snapshot('s-a')), /refresh-|new-A|new-B/)
 })
+test('settings can order by creation date without changing account/default traversal on rename', async () => {
+  const f = fixture(), older = await f.accounts.create('A'), newer = await f.accounts.create('B')
+  f.maps.accounts.set(older, { label: 'A', createdAt: 10 }); f.maps.accounts.set(newer, { label: 'B', createdAt: 20 })
+  await f.accounts.rename(older, 'renamed')
+  const { accounts } = await f.accounts.snapshot()
+  assert.deepEqual(accounts.map(({ id, createdAt }) => [id, createdAt]), [[older, 10], [newer, 20]])
+})
 test('binding survives reopening and never falls back for missing selection', async () => {
   const f = fixture(), id = await signed(f, 'A')
   await f.accounts.select('s-a', id)

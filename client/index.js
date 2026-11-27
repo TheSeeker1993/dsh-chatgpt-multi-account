@@ -640,14 +640,11 @@ window.__ModuleLoader__.load({
     Object.assign(copy.en, { resetCardTitle: 'Full reset', resetCardsTitle: 'Available resets', resetCardExpiry: 'Until {time}' })
     Object.assign(copy.zh, { resetCardTitle: '完全重置', resetCardsTitle: '可用重置', resetCardExpiry: '有效期至 {time}' })
     function MiniCardOrb({ seed = 0, quota = false }) {
-      if (React.useContext(SimpleTheme)) return quota ? h('span', { className: 'gl-mini-orb gl-static-quota', 'aria-hidden': true }) : null
       return h('span', { className: 'gl-mini-orb', 'aria-hidden': true, style: { '--gl-orb-phase': '-' + (seed * 7.13).toFixed(2) + 's', '--gl-orb-direction': seed % 2 ? 'reverse' : 'normal' } }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' })))
     }
     function ResetChoiceCard({ children, disabled, blocked, onClick, ...props }) {
-      const simple = React.useContext(SimpleTheme)
       const node = React.useRef(null), engine = React.useRef(null)
       React.useEffect(() => {
-        if (simple) return
         const element = node.current
         const media = matchMedia('(prefers-reduced-motion: reduce)')
         const base = .65 + Math.random() * .7
@@ -676,10 +673,10 @@ window.__ModuleLoader__.load({
         }
         const reduce=()=>model.hot(false);media.addEventListener('change',reduce)
         render();return()=>{cancelAnimationFrame(model.raf);media.removeEventListener('change',reduce);engine.current=null;element?.style.removeProperty('transform')}
-      }, [simple])
+      }, [])
       return h('button', { ...props, ref: node, type:'button', disabled,
-        onPointerEnter:simple ? undefined : ()=>{if(!disabled)engine.current?.hot(true)},onPointerLeave:simple ? undefined : ()=>engine.current?.hot(false),
-        onFocus:simple ? undefined : ()=>{if(!disabled)engine.current?.hot(true)},onBlur:simple ? undefined : ()=>engine.current?.hot(false),
+        onPointerEnter:()=>{if(!disabled)engine.current?.hot(true)},onPointerLeave:()=>engine.current?.hot(false),
+        onFocus:()=>{if(!disabled)engine.current?.hot(true)},onBlur:()=>engine.current?.hot(false),
          'aria-disabled': blocked || undefined, onClick: event => { if (!blocked && !disabled) onClick?.(event) } },children)
     }
 
@@ -703,7 +700,6 @@ window.__ModuleLoader__.load({
       return 'resetActionError'
     }
     function ResetMenu({ t, accountId, accountLabel, disabled, selecting, onConsumed, onBusyChange, autoOpen = false }) {
-      const simple = React.useContext(SimpleTheme)
       const [open, setOpen] = React.useState(false)
       const [data, setData] = React.useState(null)
       const [flow, setFlow] = React.useState(null)
@@ -865,7 +861,7 @@ window.__ModuleLoader__.load({
              h(ResetChoiceCard, { key: credit.id, className: 'reset-choice-card',
                'aria-label': typeText(credit) + ' · ' + tr('resetExpires', { time: stamp(credit.expiresAt) }),
                blocked: selecting, disabled: busy || (disabled && !selecting) || !open || credit.resetType !== 'codex_rate_limits' || !!(credit.expiresAt && new Date(credit.expiresAt).getTime() <= Date.now()), onClick: () => change('begin', credit) },
-               simple ? null : h('span', { className: 'reset-choice-orb', 'aria-hidden': true, style: { '--gl-orb-phase': '-' + (index * 7.13).toFixed(2) + 's', '--gl-orb-direction': index % 2 ? 'reverse' : 'normal' } }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' }))),
+               h('span', { className: 'reset-choice-orb', 'aria-hidden': true, style: { '--gl-orb-phase': '-' + (index * 7.13).toFixed(2) + 's', '--gl-orb-direction': index % 2 ? 'reverse' : 'normal' } }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' }))),
                h('strong', null, tr('resetCardTitle')),
                h('span', { className: 'reset-choice-expiry' }, credit.expiresAt ? tr('resetCardExpiry', { time: new Date(credit.expiresAt).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }) : tr('resetNoExpiry')),
                ))),
@@ -897,7 +893,6 @@ window.__ModuleLoader__.load({
       }
     }
     function OrbDecoration() {
-      if (React.useContext(SimpleTheme)) return null
       return h('span', { className: 'gl-card-orb-clip', 'aria-hidden': true }, h('span', { className: 'gl-card-orb' }, h('span', { className: 'gl-card-orb-sheen' }), h('span', { className: 'gl-card-orb-rim' })))
     }
 
@@ -1241,81 +1236,65 @@ window.__ModuleLoader__.load({
     }
     // Keep the existing storage key so upgrading preserves the selected view.
     const developerMode = displayPreference('developer-mode')
-    const SimpleTheme = React.createContext(false)
+    // Activation is separate from the picker toggle: an old mode key never grants access.
+    const advancedActivation = displayPreference('advanced-activation')
     Object.assign(copy.ru, { adminMode: 'Режим администратора', adminModeError: 'Не удалось сохранить режим интерфейса.', sectionAccount: 'Аккаунт', sectionLimits: 'Лимиты', sectionEffort: 'Уровень рассуждения', sectionModel: 'Модель' })
     Object.assign(copy.en, { adminMode: 'Administrator mode', adminModeError: 'Could not save the interface mode.', sectionAccount: 'Account', sectionLimits: 'Limits', sectionEffort: 'Reasoning effort', sectionModel: 'Model' })
     Object.assign(copy.zh, { adminMode: '管理员模式', adminModeError: '无法保存界面模式。', sectionAccount: '账号', sectionLimits: '额度', sectionEffort: '推理强度', sectionModel: '模型' })
-    const simpleCss = `
-[data-gl-simple], [data-gl-simple] *, [data-gl-simple] *::before, [data-gl-simple] *::after {
-  animation: none !important; transition: none !important; box-shadow: none !important;
-}
-[data-gl-simple].gl-picker-dialog.gl-picker-widget { width:min(390px,calc(100vw - 16px)); clip-path:none; border-radius:6px }
-[data-gl-simple] .gl-picker-shell .gl-picker-list { gap:3px; padding:3px 6px 6px }
-[data-gl-simple] .gl-picker-head { padding:4px 6px }
-[data-gl-simple] .gl-picker-list :is(.gl-effort-button,.gl-model-cell) { height:auto; min-height:24px; padding:3px 5px; line-height:16px }
-[data-gl-simple] .gl-account-mini-grid>.gl-account-mini-card { height:auto; min-height:56px; gap:0; padding:3px 4px }
-[data-gl-simple] .gl-picker-shell .gl-picker-list .gpt-reset-menu .reset-choice-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,105px),1fr)); gap:4px }
-[data-gl-simple] .gpt-reset-menu .reset-choice-card { width:100%; height:36px; gap:0; padding:3px 5px; background:transparent; border-radius:4px }
-[data-gl-simple] .gpt-reset-menu p { margin:2px 0 }
-[data-gl-simple] .gpt-reset-menu .reset-actions { margin-top:4px }
-[data-gl-simple] .gpt-reset-menu .reset-actions button { flex:1 1 0; padding:3px 5px; text-align:center }
-[data-gl-simple] .gl-picker-shell .gl-picker-list > :is(.gl-account-mini-grid,.gpt-reset-menu,.gl-efforts,.gl-model-grid) {
-  background:transparent; border:0; border-top:1px solid var(--dsw-alias-border-l2); border-radius:0; padding:5px 0;
-}
-[data-gl-simple] .gl-picker-list :is(.gl-account-mini-grid>.gl-account-mini-card,.reset-choice-card,.gl-effort-button,.gl-model-cell) {
-  background:transparent; border-radius:4px;
-}
-[data-gl-simple] .gl-account-mini-card > .gl-static-quota { inset:auto 0 0; height:var(--gl-account-quota-fill,0%); clip-path:none; background:var(--dsw-alias-state-business-primary); opacity:.16 }
-[data-gl-simple] .gl-account-mini-card[data-quota-stale=true] > .gl-static-quota { opacity:.08 }
-.gl-static-quota::after { content:none }
-.gl-developer-setting { margin-top:14px }
-.gl-developer-setting > button[aria-pressed=true] { border-color:var(--dsw-alias-state-business-primary) }
+    const presentationCss = `
+.gl-developer-setting { margin:14px 0 }
 .gl-section-label,.gl-header-updated,.gl-model-recommendation { font-size:10px; line-height:16px; color:var(--dsw-alias-label-tertiary); font-weight:400; font-variant-numeric:tabular-nums }
-.gl-section-label { display:flex; align-items:center; gap:6px; margin:3px 0 0; user-select:none; cursor:default }
 .gl-picker-footer,.gl-model-recommendation { display:flex; align-items:center; gap:4px }
 .gl-picker-footer { flex-wrap:wrap; justify-content:space-between; gap:4px 10px }
 .gl-model-recommendation { order:2; margin:0; user-select:none }
 .gl-model-cell:has(>.gl-model-star) { padding-inline:16px }
 .gl-model-star { display:block; flex:none; color:var(--dsw-alias-state-warning-primary,#c59a53); pointer-events:none }
 .gl-model-cell>.gl-model-star { position:absolute; inset-inline-end:5px; inset-block:0; margin-block:auto; z-index:1 }
-.gl-picker-footer .gl-new-chat-defaults { margin-inline-start:0; min-height:26px; font-size:11px; line-height:16px }
+.gl-picker-footer .gl-new-chat-defaults { margin-inline-start:0; min-height:30px; min-width:0; font-size:11px; line-height:16px }
 .gl-picker-footer .gl-picker-admin-switch { margin-inline-start:auto }
 .gl-picker-head .gl-picker-provider-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; flex:0 1 127px; min-width:0; margin-inline-end:auto }
 .gl-picker-head .gl-picker-provider-tabs>.gl-model-cell { justify-content:center; text-align:center; font-size:11px; line-height:16px; height:30px; min-height:30px; padding:3px 4px }
 .gl-picker-provider-tabs>.gl-model-cell[aria-pressed=true] { color:var(--dsw-alias-state-business-primary); border-color:var(--dsw-alias-state-business-primary) }
-[data-gl-simple] .gl-picker-head .gl-picker-provider-tabs>.gl-model-cell { height:24px; min-height:24px; border-radius:4px }
 .gl-picker-widget .gl-picker-head:has(.gl-picker-provider-tabs) { gap:5px; padding:4px 12px; flex-wrap:wrap }
-[data-gl-simple].gl-picker-widget .gl-picker-head:has(.gl-picker-provider-tabs) { padding-inline:6px }
-.gl-section-label::after { content:''; order:1; flex:1; border-top:1px solid var(--dsw-alias-border-l2) }
-.gl-simple-account,.gl-simple-limits { font-size:11px; margin:0; padding:2px 0 }
-.gl-simple-limits { list-style:none; display:grid; gap:3px }
+.gl-simple-limits { list-style:none; display:grid; gap:5px; margin:0; font-size:11px }
+.gl-picker-list > .gl-simple-limits { border:1px solid var(--dsw-alias-border-l2);border-radius:9px;padding:6px;background:var(--dsw-alias-bg-layer-1) }
 .gl-simple-limits li { display:grid; gap:3px; overflow-wrap:anywhere }
 .gl-simple-limit-track { height:5px; border-radius:999px; overflow:hidden; background:var(--dsw-alias-bg-module-platform); border:1px solid var(--dsw-alias-border-l2) }
 .gl-simple-limit-fill { display:block; height:100%; background:var(--dsw-alias-state-business-primary) }
 .gl-simple-limit-track[data-stale] .gl-simple-limit-fill { opacity:.55 }
-[data-gl-simple] .gl-picker-shell .gl-picker-list > .gl-section-label + :is(.gl-account-mini-grid,.gl-efforts,.gl-model-grid) { border-top:0 }
-/* Also cover flat cards, whose decorative hover layers are absent in this theme. */
-[data-gl-simple] button:hover:not(:disabled):not([aria-disabled=true]),
-button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
-  background-color:var(--dsw-alias-interactive-bg-hover) !important;
-}
 `
     function AdminModeSetting({ t }) {
-      const enabled = developerMode.useEnabled()
+      const activated = advancedActivation.useEnabled()
       const [failed, setFailed] = React.useState(false)
-      return h('div', { className: 'gl-developer-setting' },
-        h('button', { className: 'gl-btn', type: 'button', 'aria-pressed': enabled, onClick: () => {
-          try { developerMode.write(!enabled); setFailed(false) } catch { setFailed(true) }
-        } }, text(t, 'adminMode')),
+      const descriptionId = React.useId()
+      return h('section', { className: 'gl-developer-setting', 'data-gl-advanced-activation': true },
+        h('label', { className: 'gl-new-chat-defaults gl-settings-switch' },
+          h('input', { type: 'checkbox', role: 'switch', checked: activated, 'aria-describedby': descriptionId, onChange: event => {
+            try {
+              // Activate only after the mode preference was stored successfully.
+              developerMode.write(event.target.checked)
+              advancedActivation.write(event.target.checked)
+              setFailed(false)
+            } catch { setFailed(true) }
+          } }), h('span', { className: 'gl-switch-track', 'aria-hidden': true }), h('span', null, text(t, 'advancedActivation'))),
+        h('p', { id: descriptionId, className: 'gl-note' }, text(t, 'advancedActivationHint')),
         failed ? h('p', { role: 'alert' }, text(t, 'adminModeError')) : null)
+    }
+    function settingsAccountsNewestFirst(accounts) {
+      const list = [...accounts]
+      // Older Hosts expose insertion order only; never reverse the shared snapshot.
+      if (!list.every(account => Number.isFinite(account.createdAt))) return list.reverse()
+      return list.map((account, index) => ({ account, index }))
+        .sort((a, b) => b.account.createdAt - a.account.createdAt || b.index - a.index)
+        .map(entry => entry.account)
     }
     function GptLinkSection({ t, remote }) {
       const { snapshot, error, pending, refresh, mutate } = useAccounts()
       const [label, setLabel] = React.useState('')
-      const simple = !developerMode.useEnabled()
-      return h(SimpleTheme.Provider, { value: simple }, h('div', { className: 'gl', 'data-gl-simple': simple || undefined },
-        h('style', null, css + pickerCss + simpleCss), h('h2', { className: 'gl-heading' }, text(t, 'accounts')),
+      return h(React.Fragment, null, h('div', { className: 'gl' },
+        h('style', null, css + pickerCss + presentationCss), h('h2', { className: 'gl-heading' }, text(t, 'accounts')),
         h('p', { className: 'gl-intro' }, text(t, snapshot?.accounts.some(account => account.configured) ? 'setupConnected' : 'setupHint')),
+        h(AdminModeSetting, { t }),
         h('form', { className: 'gl-form', onSubmit: async event => {
           event.preventDefault()
           if (label.trim() && await mutate({ action: 'create', label: label.trim() })) setLabel('')
@@ -1326,10 +1305,9 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
           h('button', { className: 'gl-btn', type: 'button', onClick: () => void refresh() }, text(t, 'retry'))) : null,
         !snapshot && !error ? h('p', null, text(t, 'loading')) : null,
         snapshot?.accounts.length === 0 ? h('p', { className: 'gl-note' }, text(t, 'emptyAccounts')) : null,
-        snapshot?.accounts.map(account => h(AccountPanel, { key: account.id, t, account, pending, mutate })),
+        snapshot ? settingsAccountsNewestFirst(snapshot.accounts).map(account => h(AccountPanel, { key: account.id, t, account, pending, mutate })) : null,
         snapshot?.accounts.some(account => account.configured) ? h(WebSearchSetup, { t, remote }) : null,
-        h(SubagentSetup, { t, remote }),
-        h(AdminModeSetting, { t })))
+        h(SubagentSetup, { t, remote })))
     }
 
     function SessionAccountSelector({ t, sessionId, useSession }) {
@@ -1519,14 +1497,17 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
 @media(prefers-reduced-motion:reduce){.gl-fan-card{will-change:auto}}
 
 .gl-compact-tabs{display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:0 12px 8px;flex:none}
-.gl-new-chat-defaults{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-primary);cursor:pointer;position:relative}
-.gl-new-chat-defaults input{appearance:none;box-sizing:border-box;flex:none;width:28px;height:16px;margin:0;padding:2px;border:1px solid var(--dsw-alias-label-secondary);border-radius:999px;background:var(--dsw-alias-bg-layer-1);cursor:inherit}
-.gl-new-chat-defaults input::before{content:'';display:block;width:10px;height:10px;border-radius:50%;background:var(--dsw-alias-label-primary)}
-.gl-new-chat-defaults input:checked{background:var(--dsw-alias-state-business-primary);border-color:transparent}
-.gl-new-chat-defaults input:checked::before{transform:translateX(12px);background:var(--dsw-alias-bg-layer-1)}
-@media(forced-colors:active){.gl-new-chat-defaults input{appearance:auto}}
-.gl-new-chat-defaults input:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}
+.gl-new-chat-defaults{margin-left:auto;display:flex;align-items:center;gap:7px;min-height:30px;font-size:11px;color:var(--dsw-alias-label-primary);cursor:pointer;position:relative}
+.gl-new-chat-defaults input{position:absolute;inset-inline-start:0;top:50%;width:32px;height:20px;margin:0;transform:translateY(-50%);opacity:0;cursor:inherit;z-index:1}
+.gl-switch-track{display:block;box-sizing:border-box;flex:none;width:32px;height:20px;padding:3px;border:1px solid var(--dsw-alias-label-secondary);border-radius:999px;background:var(--dsw-alias-bg-layer-1);pointer-events:none}
+.gl-switch-track::before{content:'';display:block;width:12px;height:12px;border-radius:50%;background:var(--dsw-alias-label-primary);transition:transform .15s ease}
+.gl-new-chat-defaults input:checked + .gl-switch-track{background:var(--dsw-alias-state-business-primary);border-color:var(--dsw-alias-label-primary)}
+.gl-new-chat-defaults input:checked + .gl-switch-track::before{transform:translateX(12px);background:var(--dsw-alias-bg-layer-1)}
+.gl-new-chat-defaults input:focus-visible + .gl-switch-track{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:3px}
 .gl-new-chat-defaults:has(input:disabled){opacity:.6;cursor:default}
+.gl-settings-switch{margin-inline-start:0;font-size:13px}
+@media(forced-colors:active){.gl-switch-track{background:Canvas;border-color:ButtonText}.gl-switch-track::before{background:ButtonText}.gl-new-chat-defaults input:checked + .gl-switch-track{background:Highlight;border-color:Highlight}.gl-new-chat-defaults input:checked + .gl-switch-track::before{background:HighlightText}.gl-new-chat-defaults input:focus-visible + .gl-switch-track{outline-color:Highlight}}
+@media(prefers-reduced-motion:reduce){.gl-switch-track::before{transition:none}}
 .gl-defaults-status{position:absolute;right:0;top:100%;z-index:2;max-width:240px;padding:4px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);border-radius:4px}
 .gl-compact-tabs button,.gl-account-tab,.gl-effort-button{border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:7px;padding:4px 9px;font:inherit;font-size:12px;cursor:pointer}
 .gl-compact-tabs button[aria-pressed=true],.gl-account-tab[aria-pressed=true],.gl-effort-button[aria-pressed=true]{color:var(--dsw-alias-state-business-primary);border-color:var(--dsw-alias-state-business-primary);background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 8%,transparent)}
@@ -1685,7 +1666,7 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
       const status = failed ? 'defaultsError' : loading ? 'defaultsLoading' : unavailable ? 'defaultsUnavailable' : 'defaultsTitle'
       return h('label', { className: 'gl-new-chat-defaults' },
         h('input', { type: 'checkbox', role: 'switch', checked, disabled: !open || disabled || loading || busy || failed || unavailable, 'aria-disabled': selecting || undefined, onChange: change, 'aria-busy': loading || busy, 'aria-description': text(t, status) }),
-        h('span', null, text(t, 'defaultsLabel')),
+        h('span', { className: 'gl-switch-track', 'aria-hidden': true }), h('span', null, text(t, 'defaultsLabel')),
         failed ? h('span', { className: 'gl-defaults-status', role: 'alert' }, text(t, status)) : null)
     }
 
@@ -1746,7 +1727,9 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
     }
 
     function UnifiedPicker({ t, sessionId, useSession, directory, locked }) {
-      const simple = !developerMode.useEnabled()
+      const activated = advancedActivation.useEnabled()
+      const modeEnabled = developerMode.useEnabled()
+      const simple = !(activated && modeEnabled)
       const state = React.useSyncExternalStore(directory.store.subscribe, directory.store.getSnapshot, directory.store.getSnapshot)
       const { snapshot, refresh, mutate, error: accountError } = useAccounts(sessionId)
       const unavailable = useSession(s => s.subagent !== null)
@@ -1840,7 +1823,7 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
         let frame = 0
         const place = () => {
           const box = anchor.getBoundingClientRect(), edge = 8, gap = 7
-          const width = Math.min(simple ? 390 : 440, window.innerWidth - edge * 2)
+          const width = Math.min(440, window.innerWidth - edge * 2)
           const above = Math.max(0, box.top - edge - gap), below = Math.max(0, window.innerHeight - box.bottom - edge - gap)
           const upwards = above > below
           const maxHeight = Math.max(80, Math.min(620, upwards ? above : below))
@@ -1860,7 +1843,7 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
           cancelAnimationFrame(frame); observer.disconnect()
           window.removeEventListener('resize', schedule); document.removeEventListener('scroll', schedule, true)
         }
-      }, [open, simple, unavailable])
+      }, [open, unavailable])
       React.useEffect(() => {
         if (!open) return
         const outside = event => {
@@ -1965,14 +1948,14 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
       if (unavailable) return null
       const updatedAt = Math.max(0, ...Object.values(quotas).map(q => q?.fetchedAt ?? 0), ...Object.values(resets).map(r => r?.fetchedAt ?? 0))
       const updatedDate = updatedAt > 0 ? new Date(updatedAt) : null
-      const sectionLabel = (key, trailing) => simple ? h('h3', { className: 'gl-section-label' }, text(t, key), trailing) : null
+      const sectionLabel = () => null
       const previewQuota = quotas[previewAccount?.id]
       const limitRows = previewQuota?.windows ?? []
-      return h(SimpleTheme.Provider, { value: simple },
-        h('style', null, css + pickerCss + simpleCss),
-        h('button', { ref: trigger, 'data-gl-simple': simple || undefined, type: 'button', className: 'gl-picker-trigger', 'aria-label': triggerLabel, onClick: () => { if (resetBusy || inFlight.current) return; if (open) { close(); return } setQuery(''); setTab(state.current?.provider === 'chatgpt-session' || !state.current?.provider ? 'gpt' : 'other'); setPreviewId(selectedId ?? null); setOtherProvider(state.current?.provider ?? null); setOpen(true) }, disabled: !!locked || resetBusy, 'aria-haspopup': 'dialog', 'aria-expanded': open },
+      return h(React.Fragment, null,
+        h('style', null, css + pickerCss + presentationCss),
+        h('button', { ref: trigger, type: 'button', className: 'gl-picker-trigger', 'aria-label': triggerLabel, onClick: () => { if (resetBusy || inFlight.current) return; if (open) { close(); return } setQuery(''); setTab(state.current?.provider === 'chatgpt-session' || !state.current?.provider ? 'gpt' : 'other'); setPreviewId(selectedId ?? null); setOtherProvider(state.current?.provider ?? null); setOpen(true) }, disabled: !!locked || resetBusy, 'aria-haspopup': 'dialog', 'aria-expanded': open },
           h('span', { className: 'gl-trigger-model' }, modelLabel), accountLabel ? h('span', { className: 'gl-trigger-account' }, '· ' + accountLabel) : null, state.current?.provider === 'chatgpt-session' && selectedId ? h('small', { className: 'gl-picker-quota', 'aria-hidden': true }, triggerQuotaText(quotas[selectedId], true)) : null, ' ▾'),
-        h('dialog', { ref: dialog, 'data-gl-simple': simple || undefined, popover: 'manual', tabIndex: -1, className: 'gl-picker-dialog gl-picker-widget', 'aria-modal': false, 'aria-label': text(t, 'pickerTitle'), onCancel: e => { e.preventDefault(); close() }, onClick: e => { if (e.target === dialog.current) close() } },
+        h('dialog', { ref: dialog, popover: 'manual', tabIndex: -1, className: 'gl-picker-dialog gl-picker-widget', 'aria-modal': false, 'aria-label': text(t, 'pickerTitle'), onCancel: e => { e.preventDefault(); close() }, onClick: e => { if (e.target === dialog.current) close() } },
           h('div', { className: 'gl-picker-shell' },
             h('header', { className: 'gl-picker-head' },
                h('div', { className: 'gl-picker-provider-tabs', role: 'group', 'aria-label': text(t, 'pickerTitle') },
@@ -2026,11 +2009,11 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
                !simple && tab === 'gpt' && availableCatalog.rows.filter(row => row.registration === 'unconfirmed').map(row => h('p', { key: row.id, className: 'gl-note' }, row.id + ' — ' + text(t, 'catalogUnconfirmed'))),
               h('div', { className: 'gl-picker-footer' },
                  tab === 'gpt' ? h(NewChatDefaults, { open, combo: newChatCombo(state.current, nativeModels, previewIsCurrent ? selectedAccount : null, displayedEffort, tab), disabled: !!locked, selecting, t }) : null,
-                 h('label', { className: 'gl-new-chat-defaults gl-picker-admin-switch' },
+                 activated ? h('label', { className: 'gl-new-chat-defaults gl-picker-admin-switch' },
                    h('input', { type: 'checkbox', role: 'switch', checked: !simple, disabled: resetBusy || selecting, onChange: event => {
                      if (resetBusy || inFlight.current) return
                      try { developerMode.write(event.target.checked); setAdminModeFailed(false) } catch { setAdminModeFailed(true) }
-                   } }), text(t, 'adminMode'))),
+                   } }), h('span', { className: 'gl-switch-track', 'aria-hidden': true }), h('span', null, text(t, 'adminMode'))) : null),
               !visibleModels.length ? h('p', { className: 'gl-note', role: 'status' }, text(t, state.status === 'loading' ? 'pickerLoad' : query ? 'pickerNoResults' : 'pickerEmptyModels')) : null,
               null))))
 
@@ -3036,6 +3019,21 @@ button[data-gl-simple]:hover:not(:disabled):not([aria-disabled=true]) {
         "recommendedModel": "modelo recomendado"
       }
     })
+
+    // Activation and authorization status copy is registered in every supported language.
+    for (const [lang, values] of Object.entries({
+      ru: ['Активировать расширенный режим', 'Включает расширенные функции и переключатель в меню модели. Выключение режима в меню не отменяет эту настройку.', 'Требуется обновление авторизации. Обновите квоту; повторный вход обычно не нужен.', 'Временно не удалось обновить авторизацию. Повторите позже; входить заново пока не требуется.', 'Для обновления авторизации войдите в этот аккаунт снова.', 'Сервис квот отклонил запрос. Это ещё не означает, что нужно входить заново. Обновите позже.'],
+      en: ['Activate advanced mode', 'Enables advanced features and the switch in the model menu. Turning the mode off in the menu does not revoke this setting.', 'Authorization needs refreshing. Refresh the quota; signing in again is usually unnecessary.', 'Authorization could not be refreshed temporarily. Try later; you do not need to sign in again yet.', 'Sign in to this account again to renew authorization.', 'The quota service rejected the request. This does not by itself require signing in again. Refresh later.'],
+      zh: ['激活高级模式', '启用高级功能和模型菜单中的开关。在菜单中关闭模式不会取消此设置。', '需要更新授权。请刷新额度，通常无需重新登录。', '暂时无法更新授权，请稍后重试，目前无需重新登录。', '请重新登录此账号以更新授权。', '额度服务拒绝了请求，但这本身并不表示需要重新登录。请稍后刷新。'],
+      ja: ['詳細モードを有効化', '詳細機能とモデルメニューのスイッチを有効にします。メニューでモードをオフにしても、この設定は解除されません。', '認証の更新が必要です。利用枠を更新してください。通常、再ログインは不要です。', '認証を一時的に更新できませんでした。後でお試しください。現時点では再ログインは不要です。', '認証を更新するには、このアカウントに再ログインしてください。', '利用枠サービスがリクエストを拒否しました。これだけでは再ログインが必要とは限りません。後で更新してください。'],
+      es: ['Activar el modo avanzado', 'Activa las funciones avanzadas y el interruptor del menú de modelos. Desactivarlo en el menú no revoca este permiso.', 'Es necesario renovar la autorización. Actualiza la cuota; normalmente no hace falta volver a iniciar sesión.', 'No se pudo renovar la autorización temporalmente. Inténtalo más tarde; por ahora no necesitas volver a iniciar sesión.', 'Vuelve a iniciar sesión en esta cuenta para renovar la autorización.', 'El servicio de cuotas rechazó la solicitud. Esto no implica por sí solo que debas volver a iniciar sesión. Actualiza más tarde.'],
+      fr: ['Activer le mode avancé', 'Active les fonctions avancées et le commutateur du menu des modèles. Désactiver le mode dans ce menu ne révoque pas ce réglage.', 'L’autorisation doit être renouvelée. Actualisez le quota ; une nouvelle connexion n’est généralement pas nécessaire.', 'Le renouvellement de l’autorisation a temporairement échoué. Réessayez plus tard ; une nouvelle connexion n’est pas encore nécessaire.', 'Reconnectez-vous à ce compte pour renouveler l’autorisation.', 'Le service des quotas a refusé la requête. Cela ne signifie pas à lui seul qu’une nouvelle connexion est nécessaire. Actualisez plus tard.'],
+      de: ['Erweiterten Modus aktivieren', 'Aktiviert erweiterte Funktionen und den Schalter im Modellmenü. Das Ausschalten im Menü widerruft diese Einstellung nicht.', 'Die Autorisierung muss erneuert werden. Aktualisieren Sie das Kontingent; eine erneute Anmeldung ist normalerweise nicht nötig.', 'Die Autorisierung konnte vorübergehend nicht erneuert werden. Versuchen Sie es später erneut; eine erneute Anmeldung ist noch nicht nötig.', 'Melden Sie sich bei diesem Konto erneut an, um die Autorisierung zu erneuern.', 'Der Kontingentdienst hat die Anfrage abgelehnt. Dies allein erfordert keine erneute Anmeldung. Aktualisieren Sie später erneut.'],
+      pt: ['Ativar modo avançado', 'Ativa os recursos avançados e o interruptor no menu de modelos. Desativar o modo no menu não revoga esta configuração.', 'A autorização precisa ser renovada. Atualize a cota; geralmente não é necessário entrar novamente.', 'Não foi possível renovar a autorização temporariamente. Tente mais tarde; ainda não é necessário entrar novamente.', 'Entre novamente nesta conta para renovar a autorização.', 'O serviço de cotas rejeitou a solicitação. Isso, por si só, não significa que você precisa entrar novamente. Atualize mais tarde.'],
+    })) {
+      const [advancedActivation, advancedActivationHint, stale, refreshFailed, reauthRequired, tokenRejected] = values
+      Object.assign(copy[lang], { advancedActivation, advancedActivationHint, 'quota-token-stale': stale, 'quota-refresh-failed': refreshFailed, 'quota-reauth-required': reauthRequired, 'quota-token-rejected': tokenRejected })
+    }
 
     // Selection feedback is shared by all DSH languages.
     for (const [lang, values] of Object.entries({
